@@ -218,8 +218,8 @@ impl<'a> GraphColoring<'a> {
                 self.check_invariants();
             }
 
-            !(self.worklist_simplify.is_empty() && self.worklist_moves.is_empty() &&
-                  self.worklist_freeze.is_empty() && self.worklist_spill.is_empty())
+            !(self.worklist_simplify.is_empty() && self.worklist_moves.is_empty()
+                && self.worklist_freeze.is_empty() && self.worklist_spill.is_empty())
         } {}
 
         // pick color for nodes
@@ -730,8 +730,8 @@ impl<'a> GraphColoring<'a> {
             if !precolored_v {
                 self.add_worklist(v);
             }
-        } else if (precolored_u && self.check_ok(u, v)) ||
-                   (!precolored_u && self.check_conservative(u, v))
+        } else if (precolored_u && self.check_ok(u, v))
+            || (!precolored_u && self.check_conservative(u, v))
         {
             trace!("  ok(u, v) = {}", self.check_ok(u, v));
             trace!("  conservative(u, v) = {}", self.check_conservative(u, v));
@@ -842,8 +842,7 @@ impl<'a> GraphColoring<'a> {
             self.decrement_degree(t);
         }
 
-        if self.worklist_freeze.contains(&u) &&
-            self.ig.get_degree_of(u) >= self.n_regs_for_node(u)
+        if self.worklist_freeze.contains(&u) && self.ig.get_degree_of(u) >= self.n_regs_for_node(u)
         {
             trace!("  move {} from worklistFreeze to worklistSpill", u);
             self.worklist_freeze.remove(&u);
@@ -1028,7 +1027,11 @@ impl<'a> GraphColoring<'a> {
 
         for mov in self.frozen_moves.iter() {
             // find the other part of the mov
-            let other = if mov.from == reg { mov.to } else { mov.from };
+            let other = if mov.from == reg {
+                mov.to
+            } else {
+                mov.from
+            };
             let alias = self.get_alias(other);
             let other_color = self.ig.get_color_of(alias);
             let other_weight = self.ig.get_spill_cost(alias);
@@ -1122,15 +1125,13 @@ impl<'a> GraphColoring<'a> {
                 let alias = self.get_alias(node);
                 let machine_reg = match self.ig.get_color_of(alias) {
                     Some(reg) => reg,
-                    None => {
-                        panic!(
-                            "Reg{}/{:?} (aliased as Reg{}/{:?}) is not assigned with a color",
-                            self.ig.get_temp_of(node),
-                            node,
-                            self.ig.get_temp_of(alias),
-                            alias
-                        )
-                    }
+                    None => panic!(
+                        "Reg{}/{:?} (aliased as Reg{}/{:?}) is not assigned with a color",
+                        self.ig.get_temp_of(node),
+                        node,
+                        self.ig.get_temp_of(alias),
+                        alias
+                    )
                 };
 
                 ret.insert(temp, machine_reg);

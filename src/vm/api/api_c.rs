@@ -168,23 +168,17 @@ pub struct CMuCtx {
     pub ref_eq: extern "C" fn(*mut CMuCtx, CMuGenRefValue, CMuGenRefValue) -> CMuBool,
     pub ref_ult: extern "C" fn(*mut CMuCtx, CMuIRefValue, CMuIRefValue) -> CMuBool,
     pub extract_value: extern "C" fn(*mut CMuCtx, CMuStructValue, c_int) -> CMuValue,
-    pub insert_value: extern "C" fn(*mut CMuCtx, CMuStructValue, c_int, CMuValue)
-        -> CMuStructValue,
-    pub extract_element:
-        extern "C" fn(*mut CMuCtx, CMuSeqValue, CMuIntValue) -> CMuValue,
+    pub insert_value: extern "C" fn(*mut CMuCtx, CMuStructValue, c_int, CMuValue) -> CMuStructValue,
+    pub extract_element: extern "C" fn(*mut CMuCtx, CMuSeqValue, CMuIntValue) -> CMuValue,
     pub insert_element:
         extern "C" fn(*mut CMuCtx, CMuSeqValue, CMuIntValue, CMuValue) -> CMuSeqValue,
     pub new_fixed: extern "C" fn(*mut CMuCtx, CMuID) -> CMuRefValue,
     pub new_hybrid: extern "C" fn(*mut CMuCtx, CMuID, CMuIntValue) -> CMuRefValue,
-    pub refcast:
-        extern "C" fn(*mut CMuCtx, CMuGenRefValue, CMuID) -> CMuGenRefValue,
+    pub refcast: extern "C" fn(*mut CMuCtx, CMuGenRefValue, CMuID) -> CMuGenRefValue,
     pub get_iref: extern "C" fn(*mut CMuCtx, CMuRefValue) -> CMuIRefValue,
-    pub get_field_iref:
-        extern "C" fn(*mut CMuCtx, CMuIRefValue, c_int) -> CMuIRefValue,
-    pub get_elem_iref:
-        extern "C" fn(*mut CMuCtx, CMuIRefValue, CMuIntValue) -> CMuIRefValue,
-    pub shift_iref:
-        extern "C" fn(*mut CMuCtx, CMuIRefValue, CMuIntValue) -> CMuIRefValue,
+    pub get_field_iref: extern "C" fn(*mut CMuCtx, CMuIRefValue, c_int) -> CMuIRefValue,
+    pub get_elem_iref: extern "C" fn(*mut CMuCtx, CMuIRefValue, CMuIntValue) -> CMuIRefValue,
+    pub shift_iref: extern "C" fn(*mut CMuCtx, CMuIRefValue, CMuIntValue) -> CMuIRefValue,
     pub get_var_part_iref: extern "C" fn(*mut CMuCtx, CMuIRefValue) -> CMuIRefValue,
     pub load: extern "C" fn(*mut CMuCtx, CMuMemOrd, CMuIRefValue) -> CMuValue,
     pub store: extern "C" fn(*mut CMuCtx, CMuMemOrd, CMuIRefValue, CMuValue),
@@ -198,24 +192,18 @@ pub struct CMuCtx {
         CMuValue,
         *mut CMuBool
     ) -> CMuValue,
-    pub atomicrmw: extern "C" fn(*mut CMuCtx, CMuMemOrd, CMuAtomicRMWOptr, CMuIRefValue, CMuValue)
-        -> CMuValue,
+    pub atomicrmw:
+        extern "C" fn(*mut CMuCtx, CMuMemOrd, CMuAtomicRMWOptr, CMuIRefValue, CMuValue) -> CMuValue,
     pub fence: extern "C" fn(*mut CMuCtx, CMuMemOrd),
-    pub new_stack:
-        extern "C" fn(*mut CMuCtx, CMuFuncRefValue) -> CMuStackRefValue,
-    pub new_thread_nor: extern "C" fn(
-        *mut CMuCtx,
-        CMuStackRefValue,
-        CMuRefValue,
-        *mut CMuValue,
-        CMuArraySize
-    ) -> CMuThreadRefValue,
-    pub new_thread_exc: extern "C" fn(*mut CMuCtx, CMuStackRefValue, CMuRefValue, CMuRefValue)
-        -> CMuThreadRefValue,
+    pub new_stack: extern "C" fn(*mut CMuCtx, CMuFuncRefValue) -> CMuStackRefValue,
+    pub new_thread_nor:
+        extern "C" fn(*mut CMuCtx, CMuStackRefValue, CMuRefValue, *mut CMuValue, CMuArraySize)
+            -> CMuThreadRefValue,
+    pub new_thread_exc:
+        extern "C" fn(*mut CMuCtx, CMuStackRefValue, CMuRefValue, CMuRefValue) -> CMuThreadRefValue,
     pub kill_stack: extern "C" fn(*mut CMuCtx, CMuStackRefValue),
     pub set_threadlocal: extern "C" fn(*mut CMuCtx, CMuThreadRefValue, CMuRefValue),
-    pub get_threadlocal:
-        extern "C" fn(*mut CMuCtx, CMuThreadRefValue) -> CMuRefValue,
+    pub get_threadlocal: extern "C" fn(*mut CMuCtx, CMuThreadRefValue) -> CMuRefValue,
     pub new_cursor: extern "C" fn(*mut CMuCtx, CMuStackRefValue) -> CMuFCRefValue,
     pub next_frame: extern "C" fn(*mut CMuCtx, CMuFCRefValue),
     pub copy_cursor: extern "C" fn(*mut CMuCtx, CMuFCRefValue) -> CMuFCRefValue,
@@ -229,24 +217,19 @@ pub struct CMuCtx {
     pub tr64_is_fp: extern "C" fn(*mut CMuCtx, CMuTagRef64Value) -> CMuBool,
     pub tr64_is_int: extern "C" fn(*mut CMuCtx, CMuTagRef64Value) -> CMuBool,
     pub tr64_is_ref: extern "C" fn(*mut CMuCtx, CMuTagRef64Value) -> CMuBool,
-    pub tr64_to_fp:
-        extern "C" fn(*mut CMuCtx, CMuTagRef64Value) -> CMuDoubleValue,
+    pub tr64_to_fp: extern "C" fn(*mut CMuCtx, CMuTagRef64Value) -> CMuDoubleValue,
     pub tr64_to_int: extern "C" fn(*mut CMuCtx, CMuTagRef64Value) -> CMuIntValue,
     pub tr64_to_ref: extern "C" fn(*mut CMuCtx, CMuTagRef64Value) -> CMuRefValue,
     pub tr64_to_tag: extern "C" fn(*mut CMuCtx, CMuTagRef64Value) -> CMuIntValue,
-    pub tr64_from_fp:
-        extern "C" fn(*mut CMuCtx, CMuDoubleValue) -> CMuTagRef64Value,
-    pub tr64_from_int:
-        extern "C" fn(*mut CMuCtx, CMuIntValue) -> CMuTagRef64Value,
-    pub tr64_from_ref:
-        extern "C" fn(*mut CMuCtx, CMuRefValue, CMuIntValue) -> CMuTagRef64Value,
+    pub tr64_from_fp: extern "C" fn(*mut CMuCtx, CMuDoubleValue) -> CMuTagRef64Value,
+    pub tr64_from_int: extern "C" fn(*mut CMuCtx, CMuIntValue) -> CMuTagRef64Value,
+    pub tr64_from_ref: extern "C" fn(*mut CMuCtx, CMuRefValue, CMuIntValue) -> CMuTagRef64Value,
     pub enable_watchpoint: extern "C" fn(*mut CMuCtx, CMuWPID),
     pub disable_watchpoint: extern "C" fn(*mut CMuCtx, CMuWPID),
     pub pin: extern "C" fn(*mut CMuCtx, CMuValue) -> CMuUPtrValue,
     pub unpin: extern "C" fn(*mut CMuCtx, CMuValue),
     pub get_addr: extern "C" fn(*mut CMuCtx, CMuValue) -> CMuUPtrValue,
-    pub expose: extern "C" fn(*mut CMuCtx, CMuFuncRefValue, CMuCallConv, CMuIntValue)
-        -> CMuValue,
+    pub expose: extern "C" fn(*mut CMuCtx, CMuFuncRefValue, CMuCallConv, CMuIntValue) -> CMuValue,
     pub unexpose: extern "C" fn(*mut CMuCtx, CMuCallConv, CMuValue),
     pub new_ir_builder: extern "C" fn(*mut CMuCtx) -> *mut CMuIRBuilder,
     pub make_boot_image: extern "C" fn(

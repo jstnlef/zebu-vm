@@ -20,7 +20,7 @@ use ast::ptr::*;
 use ast::types::*;
 use compiler::backend::RegGroup;
 
-use std::sync::{RwLock, Arc};
+use std::sync::{Arc, RwLock};
 pub type EntryFuncSig = MuFuncSig;
 
 pub struct RuntimeEntrypoint {
@@ -86,63 +86,105 @@ lazy_static! {
 lazy_static! {
     pub static ref ALLOC_TINY: RuntimeEntrypoint = RuntimeEntrypoint::new(
         "muentry_alloc_tiny",
-        vec![ADDRESS_TYPE.clone(), UINT64_TYPE.clone(), UINT64_TYPE.clone()],
+        vec![
+            ADDRESS_TYPE.clone(),
+            UINT64_TYPE.clone(),
+            UINT64_TYPE.clone(),
+        ],
         vec![ADDRESS_TYPE.clone()]
     );
     pub static ref ALLOC_TINY_SLOW: RuntimeEntrypoint = RuntimeEntrypoint::new(
         "muentry_alloc_tiny_slow",
-        vec![ADDRESS_TYPE.clone(), UINT64_TYPE.clone(), UINT64_TYPE.clone()],
+        vec![
+            ADDRESS_TYPE.clone(),
+            UINT64_TYPE.clone(),
+            UINT64_TYPE.clone(),
+        ],
         vec![ADDRESS_TYPE.clone()]
     );
     pub static ref ALLOC_NORMAL: RuntimeEntrypoint = RuntimeEntrypoint::new(
         "muentry_alloc_normal",
-        vec![ADDRESS_TYPE.clone(), UINT64_TYPE.clone(), UINT64_TYPE.clone()],
+        vec![
+            ADDRESS_TYPE.clone(),
+            UINT64_TYPE.clone(),
+            UINT64_TYPE.clone(),
+        ],
         vec![ADDRESS_TYPE.clone()]
     );
     pub static ref ALLOC_NORMAL_SLOW: RuntimeEntrypoint = RuntimeEntrypoint::new(
         "muentry_alloc_normal_slow",
-        vec![ADDRESS_TYPE.clone(), UINT64_TYPE.clone(), UINT64_TYPE.clone()],
+        vec![
+            ADDRESS_TYPE.clone(),
+            UINT64_TYPE.clone(),
+            UINT64_TYPE.clone(),
+        ],
         vec![ADDRESS_TYPE.clone()]
     );
     pub static ref ALLOC_LARGE: RuntimeEntrypoint = RuntimeEntrypoint::new(
         "muentry_alloc_large",
-        vec![ADDRESS_TYPE.clone(), UINT64_TYPE.clone(), UINT64_TYPE.clone()],
+        vec![
+            ADDRESS_TYPE.clone(),
+            UINT64_TYPE.clone(),
+            UINT64_TYPE.clone(),
+        ],
         vec![ADDRESS_TYPE.clone()]
     );
     pub static ref ALLOC_VAR_SIZE: RuntimeEntrypoint = RuntimeEntrypoint::new(
         "muentry_alloc_var_size",
-        vec![UINT64_TYPE.clone(), UINT64_TYPE.clone(), UINT64_TYPE.clone(),
-             UINT64_TYPE.clone(), UINT64_TYPE.clone(), UINT64_TYPE.clone()],
+        vec![
+            UINT64_TYPE.clone(),
+            UINT64_TYPE.clone(),
+            UINT64_TYPE.clone(),
+            UINT64_TYPE.clone(),
+            UINT64_TYPE.clone(),
+            UINT64_TYPE.clone(),
+        ],
         vec![ADDRESS_TYPE.clone()]
     );
-    pub static ref INIT_TINY : RuntimeEntrypoint = RuntimeEntrypoint::new(
+    pub static ref INIT_TINY: RuntimeEntrypoint = RuntimeEntrypoint::new(
         "muentry_init_tiny_object",
-        vec![ADDRESS_TYPE.clone(), ADDRESS_TYPE.clone(), UINT8_TYPE.clone()],
+        vec![
+            ADDRESS_TYPE.clone(),
+            ADDRESS_TYPE.clone(),
+            UINT8_TYPE.clone(),
+        ],
         vec![]
     );
     pub static ref INIT_SMALL: RuntimeEntrypoint = RuntimeEntrypoint::new(
         "muentry_init_small_object",
-        vec![ADDRESS_TYPE.clone(), ADDRESS_TYPE.clone(), UINT16_TYPE.clone()],
+        vec![
+            ADDRESS_TYPE.clone(),
+            ADDRESS_TYPE.clone(),
+            UINT16_TYPE.clone(),
+        ],
         vec![]
     );
     pub static ref INIT_MEDIUM: RuntimeEntrypoint = RuntimeEntrypoint::new(
         "muentry_init_medium_object",
-        vec![ADDRESS_TYPE.clone(), ADDRESS_TYPE.clone(), UINT32_TYPE.clone()],
+        vec![
+            ADDRESS_TYPE.clone(),
+            ADDRESS_TYPE.clone(),
+            UINT32_TYPE.clone(),
+        ],
         vec![]
     );
     pub static ref INIT_LARGE: RuntimeEntrypoint = RuntimeEntrypoint::new(
         "muentry_init_large_object",
-        vec![ADDRESS_TYPE.clone(), ADDRESS_TYPE.clone(), UINT64_TYPE.clone(), UINT64_TYPE.clone()],
+        vec![
+            ADDRESS_TYPE.clone(),
+            ADDRESS_TYPE.clone(),
+            UINT64_TYPE.clone(),
+            UINT64_TYPE.clone(),
+        ],
         vec![]
     );
-    pub static ref PIN_OBJECT : RuntimeEntrypoint = RuntimeEntrypoint::new(
+    pub static ref PIN_OBJECT: RuntimeEntrypoint = RuntimeEntrypoint::new(
         "muentry_pin_object",
         vec![ADDRESS_TYPE.clone()],
-        vec![ADDRESS_TYPE.clone()]);
-    pub static ref UNPIN_OBJECT : RuntimeEntrypoint = RuntimeEntrypoint::new(
-        "muentry_unpin_object",
-        vec![ADDRESS_TYPE.clone()],
-        vec![]);
+        vec![ADDRESS_TYPE.clone()]
+    );
+    pub static ref UNPIN_OBJECT: RuntimeEntrypoint =
+        RuntimeEntrypoint::new("muentry_unpin_object", vec![ADDRESS_TYPE.clone()], vec![]);
 }
 
 // decl: exception.rs
@@ -160,76 +202,86 @@ lazy_static! {
 }
 
 // impl/decl: math.rs
-lazy_static!{
-    pub static ref FREM32 : RuntimeEntrypoint = RuntimeEntrypoint::new(
+lazy_static! {
+    pub static ref FREM32: RuntimeEntrypoint = RuntimeEntrypoint::new(
         "muentry_frem32",
         vec![FLOAT_TYPE.clone(), FLOAT_TYPE.clone()],
-        vec![FLOAT_TYPE.clone()]);
-    pub static ref FREM64 : RuntimeEntrypoint = RuntimeEntrypoint::new(
+        vec![FLOAT_TYPE.clone()]
+    );
+    pub static ref FREM64: RuntimeEntrypoint = RuntimeEntrypoint::new(
         "muentry_frem64",
         vec![DOUBLE_TYPE.clone(), DOUBLE_TYPE.clone()],
-        vec![DOUBLE_TYPE.clone()]);
-
-    pub static ref UDIV_U128 : RuntimeEntrypoint = RuntimeEntrypoint::new(
+        vec![DOUBLE_TYPE.clone()]
+    );
+    pub static ref UDIV_U128: RuntimeEntrypoint = RuntimeEntrypoint::new(
         "muentry_udiv_u128",
         vec![UINT128_TYPE.clone(), UINT128_TYPE.clone()],
-        vec![UINT128_TYPE.clone()]);
-    pub static ref SDIV_I128 : RuntimeEntrypoint = RuntimeEntrypoint::new(
+        vec![UINT128_TYPE.clone()]
+    );
+    pub static ref SDIV_I128: RuntimeEntrypoint = RuntimeEntrypoint::new(
         "muentry_sdiv_i128",
         vec![UINT128_TYPE.clone(), UINT128_TYPE.clone()],
-        vec![UINT128_TYPE.clone()]);
-    pub static ref UREM_U128 : RuntimeEntrypoint = RuntimeEntrypoint::new(
+        vec![UINT128_TYPE.clone()]
+    );
+    pub static ref UREM_U128: RuntimeEntrypoint = RuntimeEntrypoint::new(
         "muentry_urem_u128",
         vec![UINT128_TYPE.clone(), UINT128_TYPE.clone()],
-        vec![UINT128_TYPE.clone()]);
-    pub static ref SREM_I128 : RuntimeEntrypoint = RuntimeEntrypoint::new(
+        vec![UINT128_TYPE.clone()]
+    );
+    pub static ref SREM_I128: RuntimeEntrypoint = RuntimeEntrypoint::new(
         "muentry_srem_i128",
         vec![UINT128_TYPE.clone(), UINT128_TYPE.clone()],
-        vec![UINT128_TYPE.clone()]);
-
-    pub static ref FPTOUI_DOUBLE_U128 : RuntimeEntrypoint = RuntimeEntrypoint::new(
+        vec![UINT128_TYPE.clone()]
+    );
+    pub static ref FPTOUI_DOUBLE_U128: RuntimeEntrypoint = RuntimeEntrypoint::new(
         "muentry_fptoui_double_u128",
         vec![DOUBLE_TYPE.clone()],
-        vec![UINT128_TYPE.clone()]);
-    pub static ref FPTOSI_DOUBLE_I128 : RuntimeEntrypoint = RuntimeEntrypoint::new(
+        vec![UINT128_TYPE.clone()]
+    );
+    pub static ref FPTOSI_DOUBLE_I128: RuntimeEntrypoint = RuntimeEntrypoint::new(
         "muentry_fptosi_double_i128",
         vec![DOUBLE_TYPE.clone()],
-        vec![UINT128_TYPE.clone()]);
-    pub static ref UITOFP_U128_DOUBLE : RuntimeEntrypoint = RuntimeEntrypoint::new(
+        vec![UINT128_TYPE.clone()]
+    );
+    pub static ref UITOFP_U128_DOUBLE: RuntimeEntrypoint = RuntimeEntrypoint::new(
         "muentry_uitofp_u128_double",
         vec![UINT128_TYPE.clone()],
-        vec![DOUBLE_TYPE.clone()]);
-    pub static ref SITOFP_I128_DOUBLE : RuntimeEntrypoint = RuntimeEntrypoint::new(
+        vec![DOUBLE_TYPE.clone()]
+    );
+    pub static ref SITOFP_I128_DOUBLE: RuntimeEntrypoint = RuntimeEntrypoint::new(
         "muentry_sitofp_i128_double",
         vec![UINT128_TYPE.clone()],
-        vec![DOUBLE_TYPE.clone()]);
-
-    pub static ref FPTOUI_FLOAT_U128 : RuntimeEntrypoint = RuntimeEntrypoint::new(
+        vec![DOUBLE_TYPE.clone()]
+    );
+    pub static ref FPTOUI_FLOAT_U128: RuntimeEntrypoint = RuntimeEntrypoint::new(
         "muentry_fptoui_float_u128",
         vec![FLOAT_TYPE.clone()],
-        vec![UINT128_TYPE.clone()]);
-    pub static ref FPTOSI_FLOAT_I128 : RuntimeEntrypoint = RuntimeEntrypoint::new(
+        vec![UINT128_TYPE.clone()]
+    );
+    pub static ref FPTOSI_FLOAT_I128: RuntimeEntrypoint = RuntimeEntrypoint::new(
         "muentry_fptosi_float_i128",
         vec![FLOAT_TYPE.clone()],
-        vec![UINT128_TYPE.clone()]);
-    pub static ref UITOFP_U128_FLOAT : RuntimeEntrypoint = RuntimeEntrypoint::new(
+        vec![UINT128_TYPE.clone()]
+    );
+    pub static ref UITOFP_U128_FLOAT: RuntimeEntrypoint = RuntimeEntrypoint::new(
         "muentry_uitofp_u128_float",
         vec![UINT128_TYPE.clone()],
-        vec![FLOAT_TYPE.clone()]);
-    pub static ref SITOFP_I128_FLOAT : RuntimeEntrypoint = RuntimeEntrypoint::new(
+        vec![FLOAT_TYPE.clone()]
+    );
+    pub static ref SITOFP_I128_FLOAT: RuntimeEntrypoint = RuntimeEntrypoint::new(
         "muentry_sitofp_i128_float",
         vec![UINT128_TYPE.clone()],
-        vec![FLOAT_TYPE.clone()]);
+        vec![FLOAT_TYPE.clone()]
+    );
 }
 
 // impl/decl: mod.rs
-lazy_static!{
-    pub static ref PRINT_HEX : RuntimeEntrypoint = RuntimeEntrypoint::new(
-        "muentry_print_hex",
-        vec![UINT64_TYPE.clone()],
-        vec![]);
-    pub static ref MEM_ZERO : RuntimeEntrypoint = RuntimeEntrypoint::new(
+lazy_static! {
+    pub static ref PRINT_HEX: RuntimeEntrypoint =
+        RuntimeEntrypoint::new("muentry_print_hex", vec![UINT64_TYPE.clone()], vec![]);
+    pub static ref MEM_ZERO: RuntimeEntrypoint = RuntimeEntrypoint::new(
         "muentry_mem_zero",
         vec![IREF_VOID_TYPE.clone(), UINT64_TYPE.clone()],
-        vec![]);
+        vec![]
+    );
 }

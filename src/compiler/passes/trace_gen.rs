@@ -141,8 +141,8 @@ impl CompilerPass for TraceGen {
                             }
                             TraceHint::ReturnSink => {
                                 assert!(
-                                    ret_sink.is_none() ||
-                                        (ret_sink.is_some() && ret_sink.unwrap() == *succ_id),
+                                    ret_sink.is_none()
+                                        || (ret_sink.is_some() && ret_sink.unwrap() == *succ_id),
                                     "cannot have more than one return sink"
                                 );
                                 trace_if!(
@@ -160,8 +160,7 @@ impl CompilerPass for TraceGen {
                                      current checking block has several succeeding blocks with \
                                      fastpath hint which is \
                                      not reasonable",
-                                    succ,
-                                    succ_id
+                                    succ, succ_id
                                 );
                             }
                         }
@@ -229,9 +228,9 @@ impl CompilerPass for TraceGen {
 fn find_next_block(cur_block: &Block, func: &MuFunctionVersion) -> Option<MuID> {
     let f_content = func.content.as_ref().unwrap();
     let ref succs = cur_block.control_flow.succs;
-    let has_fastpath = succs.iter().find(|edge| {
-        f_content.get_block(edge.target).trace_hint == TraceHint::FastPath
-    });
+    let has_fastpath = succs
+        .iter()
+        .find(|edge| f_content.get_block(edge.target).trace_hint == TraceHint::FastPath);
 
     if has_fastpath.is_some() {
         let target = has_fastpath.unwrap().target;
@@ -332,12 +331,13 @@ fn branch_adjustment(func: &mut MuFunctionVersion, vm: &VM) {
                 match node.v {
                     TreeNode_::Instruction(Instruction {
                         ref ops,
-                        v: Instruction_::Branch2 {
-                            cond,
-                            ref true_dest,
-                            ref false_dest,
-                            true_prob
-                        },
+                        v:
+                            Instruction_::Branch2 {
+                                cond,
+                                ref true_dest,
+                                ref false_dest,
+                                true_prob
+                            },
                         ..
                     }) => {
                         trace_if!(LOG_TRACE_SCHEDULE, "rewrite cond branch: {}", node);
@@ -353,14 +353,14 @@ fn branch_adjustment(func: &mut MuFunctionVersion, vm: &VM) {
                             next_block_in_trace
                         );
 
-                        if next_block_in_trace.is_some() &&
-                            next_block_in_trace.unwrap() == false_label_id
+                        if next_block_in_trace.is_some()
+                            && next_block_in_trace.unwrap() == false_label_id
                         {
                             // any conditional branch followed by its false label stays unchanged
                             trace_if!(LOG_TRACE_SCHEDULE, ">>stays unchanged");
                             new_body.push(node.clone());
-                        } else if next_block_in_trace.is_some() &&
-                                   next_block_in_trace.unwrap() == true_label_id
+                        } else if next_block_in_trace.is_some()
+                            && next_block_in_trace.unwrap() == true_label_id
                         {
                             // for conditional branch followed by its true label
                             // we switch the true and false label, and negate the condition
@@ -379,20 +379,20 @@ fn branch_adjustment(func: &mut MuFunctionVersion, vm: &VM) {
                                         ref ops,
                                         v: Instruction_::CmpOp(optr, op1, op2),
                                         ..
-                                    }) => {
-                                        TreeNode::new_inst(Instruction {
-                                            hdr: MuEntityHeader::unnamed(vm.next_id()),
-                                            value: value.clone(),
-                                            ops: ops.clone(),
-                                            v: Instruction_::CmpOp(optr.invert(), op1, op2)
-                                        })
-                                    }
+                                    }) => TreeNode::new_inst(Instruction {
+                                        hdr: MuEntityHeader::unnamed(vm.next_id()),
+                                        value: value.clone(),
+                                        ops: ops.clone(),
+                                        v: Instruction_::CmpOp(optr.invert(), op1, op2)
+                                    }),
                                     // cond is computed form other instruction or is a value
                                     // we add an instruction for cond EQ 0 (negate of cond EQ 1)
                                     // orig: if (cond)        then L1 else L2
                                     // new : if ((cond) EQ 0) then L2 else L1
                                     _ => {
-                                        let temp_res: P<TreeNode> = func.new_ssa(
+                                        let temp_res: P<
+                                            TreeNode
+                                        > = func.new_ssa(
                                             MuEntityHeader::unnamed(vm.next_id()),
                                             UINT1_TYPE.clone()
                                         );
@@ -455,12 +455,10 @@ fn branch_adjustment(func: &mut MuFunctionVersion, vm: &VM) {
                                     .args
                                     .iter()
                                     .map(|x| match x {
-                                        &DestArg::Normal(i) => {
-                                            func.new_ssa(
-                                                MuEntityHeader::unnamed(vm.next_id()),
-                                                ops[i].as_value().ty.clone()
-                                            )
-                                        }
+                                        &DestArg::Normal(i) => func.new_ssa(
+                                            MuEntityHeader::unnamed(vm.next_id()),
+                                            ops[i].as_value().ty.clone()
+                                        ),
                                         _ => unimplemented!()
                                     })
                                     .collect();

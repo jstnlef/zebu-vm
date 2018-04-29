@@ -1,6 +1,6 @@
-extern crate mu;
-extern crate log;
 extern crate libloading;
+extern crate log;
+extern crate mu;
 
 use self::mu::ast::types::*;
 use self::mu::ast::ir::*;

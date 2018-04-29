@@ -1,17 +1,17 @@
 # Copyright 2017 The Australian National University
-# 
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
-# 
+#
 #     http://www.apache.org/licenses/LICENSE-2.0
-# 
+#
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
- 
+
 [package]
 name = "mu"
 version = "0.0.1"
@@ -30,35 +30,33 @@ sel4-rumprun = []
 sel4-rumprun-target-side = []
 
 [build-dependencies]
-gcc = "*"
-#built = "0.1"
+gcc = "^0.3"
 
 [dependencies]
 mu_ast = {path = "src/ast"}
 mu_utils = {path = "src/utils"}
 #mu_gc = {path = "src/gc"}
-rodal = { git = "https://gitlab.anu.edu.au/mu/rodal", branch = "new", version = "^0.1.13" }
-#rodal = { path = "./rodal", version = "*" }
+#rodal = { git = "https://gitlab.anu.edu.au/mu/rodal", branch = "new", version = "^0.1.13" }
+rodal = { path = "../rodal", version = "*" }
 
-libc="*"
-field-offset = "*"
-libloading = "*"
-lazy_static = "*"
-log = "*"
-stderrlog = "*"
-num = "*"
-hprof = "*"
-memmap = "*"
-memsec = "0.1.9"
-serde = "*"
-serde_derive = "*"
-time = "*"
-maplit = "*"
-docopt = "*"
-petgraph = "*"
-extprim = "*"
-num-traits = "*"
-#built = "0.1"
+libc = "^0.2"
+field-offset = "^0.1"
+libloading = "^0.5"
+lazy_static = "^1.0"
+log = "^0.4"
+stderrlog = "^0.3"
+num = "^0.1"
+hprof = "^0.1"
+memmap = "^0.6"
+memsec = "^0.5"
+serde = "^1.0"
+serde_derive = "^1.0"
+time = "^0.1"
+maplit = "^1.0"
+docopt = "^0.8"
+petgraph = "^0.4"
+extprim = "^1.5"
+num-traits = "^0.2"
 
 [target.aarch64-unknown-linux-gnu.dependencies]
 mu_gc = { path = "src/gc"}

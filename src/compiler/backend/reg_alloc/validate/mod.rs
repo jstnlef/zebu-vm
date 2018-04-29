@@ -294,8 +294,7 @@ fn validate_use(reg: MuID, reg_assigned: &LinkedHashMap<MuID, MuID>, alive: &Ali
                 if !entry.match_reg(machine_reg) {
                     error!(
                         "Temp{}/MachineReg{} does not match at this point. ",
-                        temp,
-                        machine_reg
+                        temp, machine_reg
                     );
                     error!("Temp{} is assigned as {}", temp, entry);
 
@@ -340,9 +339,9 @@ fn add_def(
             // add new machine register
             alive.new_alive_reg(reg);
         } else if !alive
-                   .find_entries_for_reg(reg)
-                   .iter()
-                   .any(|entry| entry.has_temp())
+            .find_entries_for_reg(reg)
+            .iter()
+            .any(|entry| entry.has_temp())
         {
             // overwrite the value that is not used
         } else {
@@ -351,9 +350,7 @@ fn add_def(
                 error!(
                     "Register{}/Temp{} is alive at this point, \
                      defining a new value to Register{} is incorrect",
-                    reg,
-                    old_temp,
-                    reg
+                    reg, old_temp, reg
                 );
             }
 
@@ -384,17 +381,13 @@ fn add_def(
                                 debug!(
                                     "Temp{} and Temp{} is using the same Register{}, \
                                      possibly coalesced",
-                                    temp,
-                                    old_temp,
-                                    machine_reg
+                                    temp, old_temp, machine_reg
                                 );
                             } else {
                                 // trying to overwrite another value, error
                                 error!(
                                     "Temp{} and Temp{} try use the same Register{}",
-                                    temp,
-                                    old_temp,
-                                    machine_reg
+                                    temp, old_temp, machine_reg
                                 );
 
                                 panic!(
@@ -440,9 +433,7 @@ fn validate_spill_load(
                 error!(
                     "SourceTemp{} is alive with the following entry, loading it \
                      from {} as ScratchTemp{} is not valid",
-                    source_temp,
-                    spill_loc,
-                    scratch_temp
+                    source_temp, spill_loc, scratch_temp
                 );
                 debug!("{}", entry);
 
@@ -454,9 +445,7 @@ fn validate_spill_load(
     } else {
         error!(
             "SourceTemp{} is not alive, loading it from {} as ScratchTemp{} is not valid",
-            scratch_temp,
-            spill_loc,
-            scratch_temp
+            scratch_temp, spill_loc, scratch_temp
         );
 
         panic!("validation failed: load a register from a spilled location before storing into it")

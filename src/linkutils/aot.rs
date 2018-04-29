@@ -337,12 +337,10 @@ pub fn compile_fnc<'a>(fnc_name: &'static str, build_fnc: &'a Fn() -> VM) -> ll:
 
         let cur_ver = match func.cur_ver {
             Some(v) => v,
-            None => {
-                panic!(
-                    "function {} does not have a defined current version",
-                    fnc_name
-                )
-            }
+            None => panic!(
+                "function {} does not have a defined current version",
+                fnc_name
+            )
         };
 
         let func_vers = vm.func_vers().read().unwrap();
@@ -423,7 +421,6 @@ pub fn run_test(vm: &VM, test_name: &str, tester_name: &str) {
 
 #[cfg(feature = "sel4-rumprun")]
 pub fn run_test(vm: &VM, test_name: &str, tester_name: &str) {
-
     use std::fs::File;
 
     //  emit/add.s
@@ -452,7 +449,6 @@ pub fn run_test(vm: &VM, test_name: &str, tester_name: &str) {
         .expect("failed to RM dest emit");
 
     assert!(output.status.success());
-
 
     // above file will be pasted in \
     //  rumprun-sel4/apps/zebu_rt/src + the above Strings
@@ -501,7 +497,6 @@ pub fn run_test(vm: &VM, test_name: &str, tester_name: &str) {
 
     assert!(output.status.success());
 
-
     /*
         Everything is ready for our sel4-rumprun Zebu runtime
         to start building the final test executable(s)
@@ -509,7 +504,6 @@ pub fn run_test(vm: &VM, test_name: &str, tester_name: &str) {
 
     use std::os::unix::io::FromRawFd;
     use std::os::unix::io::AsRawFd;
-
 
     let output = Command::new("rm")
         .arg("outputs.txt")
@@ -688,7 +682,6 @@ pub fn run_test_2f(vm: &VM, test_name: &str, dep_name: &str, tester_name: &str) 
 
 #[cfg(feature = "sel4-rumprun")]
 pub fn run_test_2f(vm: &VM, test_name: &str, dep_name: &str, tester_name: &str) {
-
     use std::fs::File;
 
     //  emit/add.s
@@ -719,7 +712,6 @@ pub fn run_test_2f(vm: &VM, test_name: &str, dep_name: &str, tester_name: &str) 
         .expect("failed to RM dest emit");
 
     assert!(output.status.success());
-
 
     // above file will be pasted in \
     //  rumprun-sel4/apps/zebu_rt/src + the above Strings
@@ -784,7 +776,6 @@ pub fn run_test_2f(vm: &VM, test_name: &str, dep_name: &str, tester_name: &str) 
 
     use std::os::unix::io::FromRawFd;
     use std::os::unix::io::AsRawFd;
-
 
     let output = Command::new("rm")
         .arg("outputs.txt")

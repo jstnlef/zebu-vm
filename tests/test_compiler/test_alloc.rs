@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-extern crate log;
 extern crate libloading;
+extern crate log;
 extern crate mu;
 
 use self::mu::ast::types::*;
@@ -90,7 +90,7 @@ fn allocation_fastpath() -> VM {
 
 #[test]
 fn test_instruction_new() {
-    build_and_run_test! (alloc_new, alloc_new_test1);
+    build_and_run_test!(alloc_new, alloc_new_test1);
 }
 
 #[allow(dead_code)]

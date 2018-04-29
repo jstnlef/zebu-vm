@@ -145,16 +145,14 @@ fn dfs(cur: MuID, stack: &mut Vec<MuID>, visited: &mut Vec<MuID>, func: &mut MuF
             TreeNode_::Instruction(ref inst) => {
                 match inst.v {
                     // unconditional branch, definitely branch to the target
-                    Branch1(ref dest) => {
-                        vec![
-                            BlockEdge {
-                                target: dest.target.id(),
-                                kind: check_edge_kind(dest.target.id(), stack),
-                                is_exception: false,
-                                probability: 1.0f32
-                            },
-                        ]
-                    }
+                    Branch1(ref dest) => vec![
+                        BlockEdge {
+                            target: dest.target.id(),
+                            kind: check_edge_kind(dest.target.id(), stack),
+                            is_exception: false,
+                            probability: 1.0f32
+                        },
+                    ],
 
                     // conditional branch
                     Branch2 {
@@ -162,22 +160,20 @@ fn dfs(cur: MuID, stack: &mut Vec<MuID>, visited: &mut Vec<MuID>, func: &mut MuF
                         ref false_dest,
                         true_prob,
                         ..
-                    } => {
-                        vec![
-                            BlockEdge {
-                                target: true_dest.target.id(),
-                                kind: check_edge_kind(true_dest.target.id(), stack),
-                                is_exception: false,
-                                probability: true_prob
-                            },
-                            BlockEdge {
-                                target: false_dest.target.id(),
-                                kind: check_edge_kind(false_dest.target.id(), stack),
-                                is_exception: false,
-                                probability: 1.0f32 - true_prob
-                            },
-                        ]
-                    }
+                    } => vec![
+                        BlockEdge {
+                            target: true_dest.target.id(),
+                            kind: check_edge_kind(true_dest.target.id(), stack),
+                            is_exception: false,
+                            probability: true_prob
+                        },
+                        BlockEdge {
+                            target: false_dest.target.id(),
+                            kind: check_edge_kind(false_dest.target.id(), stack),
+                            is_exception: false,
+                            probability: 1.0f32 - true_prob
+                        },
+                    ],
 
                     // switch
                     Switch {
@@ -191,24 +187,25 @@ fn dfs(cur: MuID, stack: &mut Vec<MuID>, visited: &mut Vec<MuID>, func: &mut MuF
                         let map: LinkedHashMap<MuID, BlockEdge> = {
                             let mut ret = LinkedHashMap::new();
 
-                            let check_add_edge = |map: &mut LinkedHashMap<MuID, BlockEdge>,
-                                                  target: MuID,
-                                                  prob: f32| {
-                                if map.contains_key(&target) {
-                                    let edge: &mut BlockEdge = map.get_mut(&target).unwrap();
-                                    edge.probability += prob;
-                                } else {
-                                    map.insert(
-                                        target,
-                                        BlockEdge {
-                                            target: target,
-                                            kind: check_edge_kind(target, stack),
-                                            is_exception: false,
-                                            probability: prob
-                                        }
-                                    );
-                                }
-                            };
+                            let check_add_edge =
+                                |map: &mut LinkedHashMap<MuID, BlockEdge>,
+                                 target: MuID,
+                                 prob: f32| {
+                                    if map.contains_key(&target) {
+                                        let edge: &mut BlockEdge = map.get_mut(&target).unwrap();
+                                        edge.probability += prob;
+                                    } else {
+                                        map.insert(
+                                            target,
+                                            BlockEdge {
+                                                target: target,
+                                                kind: check_edge_kind(target, stack),
+                                                is_exception: false,
+                                                probability: prob
+                                            }
+                                        );
+                                    }
+                                };
 
                             for &(_, ref dest) in branches.iter() {
                                 let target_id = dest.target.id();
@@ -268,15 +265,15 @@ fn dfs(cur: MuID, stack: &mut Vec<MuID>, visited: &mut Vec<MuID>, func: &mut MuF
                                     target: normal.target.id(),
                                     kind: check_edge_kind(normal.target.id(), stack),
                                     is_exception: false,
-                                    probability: (1.0f32 - WATCHPOINT_DISABLED_CHANCE) *
-                                        NORMAL_RESUME_CHANCE
+                                    probability: (1.0f32 - WATCHPOINT_DISABLED_CHANCE)
+                                        * NORMAL_RESUME_CHANCE
                                 },
                                 BlockEdge {
                                     target: exn.target.id(),
                                     kind: check_edge_kind(exn.target.id(), stack),
                                     is_exception: true,
-                                    probability: (1.0f32 - WATCHPOINT_DISABLED_CHANCE) *
-                                        EXN_RESUME_CHANCE
+                                    probability: (1.0f32 - WATCHPOINT_DISABLED_CHANCE)
+                                        * EXN_RESUME_CHANCE
                                 },
                             ]
                         }
@@ -287,28 +284,26 @@ fn dfs(cur: MuID, stack: &mut Vec<MuID>, visited: &mut Vec<MuID>, func: &mut MuF
                         ref disable_dest,
                         ref enable_dest,
                         ..
-                    } => {
-                        vec![
-                            BlockEdge {
-                                target: disable_dest.target.id(),
-                                kind: check_edge_kind(disable_dest.target.id(), stack),
-                                is_exception: false,
-                                probability: WATCHPOINT_DISABLED_CHANCE
-                            },
-                            BlockEdge {
-                                target: enable_dest.target.id(),
-                                kind: check_edge_kind(enable_dest.target.id(), stack),
-                                is_exception: false,
-                                probability: 1.0f32 - WATCHPOINT_DISABLED_CHANCE
-                            },
-                        ]
-                    }
+                    } => vec![
+                        BlockEdge {
+                            target: disable_dest.target.id(),
+                            kind: check_edge_kind(disable_dest.target.id(), stack),
+                            is_exception: false,
+                            probability: WATCHPOINT_DISABLED_CHANCE
+                        },
+                        BlockEdge {
+                            target: enable_dest.target.id(),
+                            kind: check_edge_kind(enable_dest.target.id(), stack),
+                            is_exception: false,
+                            probability: 1.0f32 - WATCHPOINT_DISABLED_CHANCE
+                        },
+                    ],
 
                     // call
-                    Call { ref resume, .. } |
-                    CCall { ref resume, .. } |
-                    SwapStackExc { ref resume, .. } |
-                    ExnInstruction { ref resume, .. } => {
+                    Call { ref resume, .. }
+                    | CCall { ref resume, .. }
+                    | SwapStackExc { ref resume, .. }
+                    | ExnInstruction { ref resume, .. } => {
                         let ref normal = resume.normal_dest;
                         let ref exn = resume.exn_dest;
 

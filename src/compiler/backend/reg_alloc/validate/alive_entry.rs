@@ -35,9 +35,7 @@ impl fmt::Display for AliveEntries {
         writeln!(
             f,
             "| {:20} | {:20} | {:20} |",
-            "ssa",
-            "registers",
-            "stack slots"
+            "ssa", "registers", "stack slots"
         ).unwrap();
         for entry in self.inner.values() {
             writeln!(f, "{}", entry).unwrap()
@@ -143,7 +141,6 @@ impl AliveEntries {
         }
         ret
     }
-
 
     pub fn new_alive_reg(&mut self, reg: MuID) {
         debug!("adding alive reg: {}", reg);
@@ -389,9 +386,9 @@ impl RegisterEntry {
     // two entries can intersect only when they have the same temp, or they do not have temps
     pub fn intersect(&mut self, another: &Self) -> bool {
         assert!(
-            (!self.has_temp() && !another.has_temp() ||
-                 (self.has_temp() && another.has_temp() &&
-                      self.get_temp().unwrap() == another.get_temp().unwrap()))
+            (!self.has_temp() && !another.has_temp()
+                || (self.has_temp() && another.has_temp()
+                    && self.get_temp().unwrap() == another.get_temp().unwrap()))
         );
 
         let mut changed = false;

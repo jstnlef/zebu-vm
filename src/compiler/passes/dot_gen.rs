@@ -22,7 +22,7 @@ use std::any::Any;
 use std::path;
 use std::io::prelude::*;
 use std::fs::File;
-use vm::uir_output::{EMIT_MUIR, create_emit_directory};
+use vm::uir_output::{create_emit_directory, EMIT_MUIR};
 
 fn create_emit_file(name: String, vm: &VM) -> File {
     let mut file_path = path::PathBuf::new();
@@ -30,13 +30,11 @@ fn create_emit_file(name: String, vm: &VM) -> File {
     file_path.push(name);
 
     match File::create(file_path.as_path()) {
-        Err(why) => {
-            panic!(
-                "couldn't create emit file {}: {}",
-                file_path.to_str().unwrap(),
-                why
-            )
-        }
+        Err(why) => panic!(
+            "couldn't create emit file {}: {}",
+            file_path.to_str().unwrap(),
+            why
+        ),
         Ok(file) => file
     }
 }
@@ -67,13 +65,11 @@ fn emit_muir_dot(suffix: &str, func: &MuFunctionVersion, vm: &VM) {
     file_path.push((*func_name).clone() + suffix + ".dot");
 
     let mut file = match File::create(file_path.as_path()) {
-        Err(why) => {
-            panic!(
-                "couldnt create muir dot {}: {}",
-                file_path.to_str().unwrap(),
-                why
-            )
-        }
+        Err(why) => panic!(
+            "couldnt create muir dot {}: {}",
+            file_path.to_str().unwrap(),
+            why
+        ),
         Ok(file) => file
     };
 
@@ -83,8 +79,6 @@ fn emit_muir_dot(suffix: &str, func: &MuFunctionVersion, vm: &VM) {
 fn escape_string(s: String) -> String {
     s.replace("\"", "\\\"") // Replace " with \"
 }
-
-
 
 fn emit_muir_dot_inner(file: &mut File, f_name: MuName, f_content: &FunctionContent) {
     use utils::vec_utils;
@@ -201,10 +195,10 @@ fn emit_muir_dot_inner(file: &mut File, f_name: MuName, f_content: &FunctionCont
                             vec_utils::as_str(&default.get_arguments(&ops))
                         ).unwrap();
                     }
-                    Call { ref resume, .. } |
-                    CCall { ref resume, .. } |
-                    SwapStackExc { ref resume, .. } |
-                    ExnInstruction { ref resume, .. } => {
+                    Call { ref resume, .. }
+                    | CCall { ref resume, .. }
+                    | SwapStackExc { ref resume, .. }
+                    | ExnInstruction { ref resume, .. } => {
                         let ref normal = resume.normal_dest;
                         let ref exn = resume.exn_dest;
 
@@ -229,7 +223,8 @@ fn emit_muir_dot_inner(file: &mut File, f_name: MuName, f_content: &FunctionCont
                         ref disable_dest,
                         ref resume,
                         ..
-                    } if id.is_some() => {
+                    } if id.is_some() =>
+                    {
                         let ref normal = resume.normal_dest;
                         let ref exn = resume.exn_dest;
 
@@ -243,7 +238,6 @@ fn emit_muir_dot_inner(file: &mut File, f_name: MuName, f_content: &FunctionCont
                                 vec_utils::as_str(&disable_dest.get_arguments(&ops))
                             ).unwrap();
                         }
-
 
                         writeln!(
                             file,

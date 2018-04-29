@@ -198,7 +198,6 @@ fn from_MuName_array<'a>(ptr: *const CMuName, len: usize) -> Vec<MuName> {
     slc.iter().map(|&e| from_MuName(e)).collect::<Vec<_>>()
 }
 
-
 // The following functions `to_*` converts high-level types to C-like types.
 
 #[inline(always)]

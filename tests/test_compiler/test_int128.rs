@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-extern crate libloading;
 extern crate extprim;
+extern crate libloading;
 
 use mu::ast::ir::*;
 use mu::ast::inst::*;
@@ -31,8 +31,9 @@ fn test_add_u128() {
     unsafe {
         use std::u64;
 
-        let add_u128: libloading::Symbol<unsafe extern "C" fn(u64, u64, u64, u64) -> (u64, u64)> =
-            lib.get(b"add_u128").unwrap();
+        let add_u128: libloading::Symbol<
+            unsafe extern "C" fn(u64, u64, u64, u64) -> (u64, u64)
+        > = lib.get(b"add_u128").unwrap();
 
         let res = add_u128(1, 0, 1, 0);
         println!("add_u128(1, 1) = {:?}", res);
@@ -83,8 +84,9 @@ fn test_sub_u128() {
     unsafe {
         use std::u64;
 
-        let sub_u128: libloading::Symbol<unsafe extern "C" fn(u64, u64, u64, u64) -> (u64, u64)> =
-            lib.get(b"sub_u128").unwrap();
+        let sub_u128: libloading::Symbol<
+            unsafe extern "C" fn(u64, u64, u64, u64) -> (u64, u64)
+        > = lib.get(b"sub_u128").unwrap();
 
         let res = sub_u128(1, 0, 1, 0);
         println!("sub_u128(1, 1) = {:?}", res);
@@ -134,8 +136,9 @@ fn test_add_const_u128() {
     unsafe {
         use std::u64;
 
-        let add_const_u128: libloading::Symbol<unsafe extern "C" fn(u64, u64) -> (u64, u64)> =
-            lib.get(b"add_const_u128").unwrap();
+        let add_const_u128: libloading::Symbol<
+            unsafe extern "C" fn(u64, u64) -> (u64, u64)
+        > = lib.get(b"add_const_u128").unwrap();
 
         let res = add_const_u128(1, 0);
         println!("add_const_u128(1, 1) = {:?}", res);
@@ -188,8 +191,9 @@ fn test_mul_u128() {
     unsafe {
         use std::u64;
 
-        let mul_u128: libloading::Symbol<unsafe extern "C" fn(u64, u64, u64, u64) -> (u64, u64)> =
-            lib.get(b"mul_u128").unwrap();
+        let mul_u128: libloading::Symbol<
+            unsafe extern "C" fn(u64, u64, u64, u64) -> (u64, u64)
+        > = lib.get(b"mul_u128").unwrap();
 
         let res = mul_u128(6, 0, 7, 0);
         println!("mul_u128(6, 7) = {:?}", res);
@@ -243,7 +247,7 @@ fn test_udiv_u128() {
         use self::extprim::u128::u128;
 
         let udiv_u128: libloading::Symbol<
-            unsafe extern "C" fn(u64, u64, u64, u64) -> (u64, u64),
+            unsafe extern "C" fn(u64, u64, u64, u64) -> (u64, u64)
         > = lib.get(b"udiv_u128").unwrap();
 
         let res = udiv_u128(42, 0, 7, 0);
@@ -256,7 +260,7 @@ fn test_udiv_u128() {
         let expect = a.wrapping_div(b);
 
         println!("udiv_u128(??, ??) = {:?}", res);
-        assert!(expect.low64()  == res.0);
+        assert!(expect.low64() == res.0);
         assert!(expect.high64() == res.1)
     }
 }
@@ -298,8 +302,9 @@ fn test_shl_u128() {
     let lib = linkutils::aot::compile_fnc("shl_u128", &shl_u128);
 
     unsafe {
-        let shl_u128: libloading::Symbol<unsafe extern "C" fn(u64, u64, u64, u64) -> (u64, u64)> =
-            lib.get(b"shl_u128").unwrap();
+        let shl_u128: libloading::Symbol<
+            unsafe extern "C" fn(u64, u64, u64, u64) -> (u64, u64)
+        > = lib.get(b"shl_u128").unwrap();
 
         let res = shl_u128(1, 0, 64, 0);
         println!("shl_u128(1, 64) = {:?}", res);
@@ -349,7 +354,7 @@ fn test_lshr_u128() {
 
     unsafe {
         let lshr_u128: libloading::Symbol<
-            unsafe extern "C" fn(u64, u64, u64, u64) -> (u64, u64),
+            unsafe extern "C" fn(u64, u64, u64, u64) -> (u64, u64)
         > = lib.get(b"lshr_u128").unwrap();
 
         let res = lshr_u128(1, 1, 64, 0);
@@ -357,7 +362,10 @@ fn test_lshr_u128() {
         assert!(res == (1, 0));
 
         let res = lshr_u128(1, 0xffffffffffffffff, 64, 0);
-        println!("lshr_u128(0xffffffffffffffff0000000000000001, 64) = {:?}", res);
+        println!(
+            "lshr_u128(0xffffffffffffffff0000000000000001, 64) = {:?}",
+            res
+        );
         assert!(res == (0xffffffffffffffff, 0));
     }
 }
@@ -400,11 +408,14 @@ fn test_ashr_u128() {
 
     unsafe {
         let ashr_u128: libloading::Symbol<
-            unsafe extern "C" fn(u64, u64, u64, u64) -> (u64, u64),
+            unsafe extern "C" fn(u64, u64, u64, u64) -> (u64, u64)
         > = lib.get(b"ashr_u128").unwrap();
 
         let res = ashr_u128(1, 0xffffffffffffffff, 64, 0);
-        println!("ashr_u128(0xffffffffffffffff0000000000000001, 64) = {:?}", res);
+        println!(
+            "ashr_u128(0xffffffffffffffff0000000000000001, 64) = {:?}",
+            res
+        );
         assert!(res == (0xffffffffffffffff, 0xffffffffffffffff));
     }
 }
@@ -453,7 +464,7 @@ fn test_store_load_u128() {
         };
 
         let store_load_u128: libloading::Symbol<
-            unsafe extern "C" fn(u64, u64, *mut u64) -> (u64, u64),
+            unsafe extern "C" fn(u64, u64, *mut u64) -> (u64, u64)
         > = lib.get(b"store_load_u128").unwrap();
 
         let res = store_load_u128(1, 2, ptr);
@@ -526,15 +537,24 @@ fn test_ugt_u128() {
         assert!(res == 1);
 
         let res = ugt_u128(1, 0xffffffffffffffff, 2, 0xffffffffffffffff);
-        println!("ugt_u128(1, 0xffffffffffffffff, 2, 0xffffffffffffffff) = {:?}", res);
+        println!(
+            "ugt_u128(1, 0xffffffffffffffff, 2, 0xffffffffffffffff) = {:?}",
+            res
+        );
         assert!(res == 0);
 
         let res = ugt_u128(1, 0xffffffffffffffff, 1, 0xffffffffffffffff);
-        println!("ugt_u128(1, 0xffffffffffffffff, 1, 0xffffffffffffffff) = {:?}", res);
+        println!(
+            "ugt_u128(1, 0xffffffffffffffff, 1, 0xffffffffffffffff) = {:?}",
+            res
+        );
         assert!(res == 0);
 
         let res = ugt_u128(1, 0xffffffffffffffff, 0, 0xffffffffffffffff);
-        println!("ugt_u128(1, 0xffffffffffffffff, 0, 0xffffffffffffffff) = {:?}", res);
+        println!(
+            "ugt_u128(1, 0xffffffffffffffff, 0, 0xffffffffffffffff) = {:?}",
+            res
+        );
         assert!(res == 1);
     }
 }
@@ -708,15 +728,24 @@ fn test_ult_u128() {
         assert!(res == 0);
 
         let res = ult_u128(1, 0xffffffffffffffff, 2, 0xffffffffffffffff);
-        println!("ult_u128(1, 0xffffffffffffffff, 2, 0xffffffffffffffff) = {:?}", res);
+        println!(
+            "ult_u128(1, 0xffffffffffffffff, 2, 0xffffffffffffffff) = {:?}",
+            res
+        );
         assert!(res == 1);
 
         let res = ult_u128(1, 0xffffffffffffffff, 1, 0xffffffffffffffff);
-        println!("ult_u128(1, 0xffffffffffffffff, 1, 0xffffffffffffffff) = {:?}", res);
+        println!(
+            "ult_u128(1, 0xffffffffffffffff, 1, 0xffffffffffffffff) = {:?}",
+            res
+        );
         assert!(res == 0);
 
         let res = ult_u128(1, 0xffffffffffffffff, 0, 0xffffffffffffffff);
-        println!("ult_u128(1, 0xffffffffffffffff, 0, 0xffffffffffffffff) = {:?}", res);
+        println!(
+            "ult_u128(1, 0xffffffffffffffff, 0, 0xffffffffffffffff) = {:?}",
+            res
+        );
         assert!(res == 0);
     }
 }

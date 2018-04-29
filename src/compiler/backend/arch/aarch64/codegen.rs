@@ -17,7 +17,7 @@ use ast::ptr::P;
 use runtime::ValueLocation;
 
 use compiler::machine_code::MachineCode;
-use compiler::backend::{Reg, Mem};
+use compiler::backend::{Mem, Reg};
 
 pub trait CodeGenerator {
     fn start_code(&mut self, func_name: MuName, entry: MuName) -> ValueLocation;
@@ -75,7 +75,6 @@ pub trait CodeGenerator {
         register arguments must be the same size) Also all arguments that may take the SP can't
         take the ZR (and vice versa)
     */
-
 
     // loads
     // supports the full full range of addressing modes
@@ -158,7 +157,6 @@ pub trait CodeGenerator {
         ret: Vec<P<Value>>,
         may_return: bool
     ) -> Option<ValueLocation>;
-
 
     fn emit_ret(&mut self, src: Reg);
     fn emit_cbnz(&mut self, src: Reg, dest_name: MuName);

@@ -23,7 +23,7 @@ use std::string::String;
 
 #[cfg(not(feature = "sel4-rumprun-target-side"))]
 lazy_static! {
-    pub static ref ZEBU_VERSION_STR : String = {
+    pub static ref ZEBU_VERSION_STR: String = {
         let git = match GIT_VERSION {
             Some(str) => str,
             None => "no git version found"
@@ -33,12 +33,11 @@ lazy_static! {
 
         format!("Zebu {} ({}, {})", PKG_VERSION, git, built_time.ctime())
     };
-
-    pub static ref ZEBU_VERSION_C_STR : CString = CString::new(ZEBU_VERSION_STR.clone()).unwrap();
+    pub static ref ZEBU_VERSION_C_STR: CString = CString::new(ZEBU_VERSION_STR.clone()).unwrap();
 }
 
 #[cfg(feature = "sel4-rumprun-target-side")]
 lazy_static! {
-    pub static ref ZEBU_VERSION_STR : String = { "Not Available in sel4-rumprun".to_string() };
-    pub static ref ZEBU_VERSION_C_STR : CString = CString::new(ZEBU_VERSION_STR.clone()).unwrap();
+    pub static ref ZEBU_VERSION_STR: String = { "Not Available in sel4-rumprun".to_string() };
+    pub static ref ZEBU_VERSION_C_STR: CString = CString::new(ZEBU_VERSION_STR.clone()).unwrap();
 }

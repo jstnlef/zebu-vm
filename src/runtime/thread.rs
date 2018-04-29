@@ -101,9 +101,8 @@ pub struct MuStack {
     #[allow(dead_code)]
     mmap: Option<memmap::MmapMut>
 }
-lazy_static!{
-    pub static ref MUSTACK_SP_OFFSET : usize =
-        offset_of!(MuStack=>sp).get_byte_offset();
+lazy_static! {
+    pub static ref MUSTACK_SP_OFFSET: usize = offset_of!(MuStack=>sp).get_byte_offset();
 }
 impl MuStack {
     /// creates a new MuStack for given entry function and function address
@@ -323,16 +322,11 @@ unsafe impl Send for MuThread {}
 
 // a few field offsets the compiler uses
 lazy_static! {
-    pub static ref ALLOCATOR_OFFSET     : usize =
-        offset_of!(MuThread=>allocator).get_byte_offset();
-    pub static ref NATIVE_SP_LOC_OFFSET : usize =
-        offset_of!(MuThread=>native_sp_loc).get_byte_offset();
-    pub static ref USER_TLS_OFFSET      : usize =
-        offset_of!(MuThread=>user_tls).get_byte_offset();
-    pub static ref STACK_OFFSET      : usize =
-        offset_of!(MuThread=>stack).get_byte_offset();
-    pub static ref EXCEPTION_OBJ_OFFSET : usize =
-        offset_of!(MuThread=>exception_obj).get_byte_offset();
+    pub static ref ALLOCATOR_OFFSET: usize = offset_of!(MuThread=>allocator).get_byte_offset();
+    pub static ref NATIVE_SP_LOC_OFFSET: usize = offset_of!(MuThread=>native_sp_loc).get_byte_offset();
+    pub static ref USER_TLS_OFFSET: usize = offset_of!(MuThread=>user_tls).get_byte_offset();
+    pub static ref STACK_OFFSET: usize = offset_of!(MuThread=>stack).get_byte_offset();
+    pub static ref EXCEPTION_OBJ_OFFSET: usize = offset_of!(MuThread=>exception_obj).get_byte_offset();
 }
 
 impl fmt::Display for MuThread {
@@ -340,8 +334,7 @@ impl fmt::Display for MuThread {
         write!(
             f,
             "MuThread    @{:?}: {}\n",
-            self as *const MuThread,
-            self.hdr
+            self as *const MuThread, self.hdr
         ).unwrap();
         write!(f, "- header    @{:?}\n", &self.hdr as *const MuEntityHeader).unwrap();
         write!(
@@ -353,20 +346,17 @@ impl fmt::Display for MuThread {
         write!(
             f,
             "- native sp @{:?}: {}\n",
-            &self.native_sp_loc as *const Address,
-            self.native_sp_loc
+            &self.native_sp_loc as *const Address, self.native_sp_loc
         ).unwrap();
         write!(
             f,
             "- user_tls  @{:?}: {}\n",
-            &self.user_tls as *const Address,
-            self.user_tls
+            &self.user_tls as *const Address, self.user_tls
         ).unwrap();
         write!(
             f,
             "- exc obj   @{:?}: {}\n",
-            &self.exception_obj as *const Address,
-            self.exception_obj
+            &self.exception_obj as *const Address, self.exception_obj
         ).unwrap();
 
         Ok(())
@@ -507,7 +497,7 @@ impl MuThread {
                         Box::from_raw(muthread);
                     }
                 }) {
-                Ok(handle) => handle,
+                | Ok(handle) => handle,
                 Err(_) => panic!("failed to create a thread")
             },
             muthread_ptr

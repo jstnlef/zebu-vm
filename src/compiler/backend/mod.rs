@@ -245,13 +245,11 @@ impl BackendType {
         let mut hybrid_full_encode = None;
         let encode = match self.ty.v {
             // integer
-            MuType_::Int(size_in_bit) => {
-                match size_in_bit {
-                    1...64 => TypeEncode::short_noref(MINIMAL_ALIGNMENT, 1),
-                    128 => TypeEncode::short_noref(MINIMAL_ALIGNMENT, 2),
-                    _ => unimplemented!()
-                }
-            }
+            MuType_::Int(size_in_bit) => match size_in_bit {
+                1...64 => TypeEncode::short_noref(MINIMAL_ALIGNMENT, 1),
+                128 => TypeEncode::short_noref(MINIMAL_ALIGNMENT, 2),
+                _ => unimplemented!()
+            },
             // void
             MuType_::Void => TypeEncode::short_noref(MINIMAL_ALIGNMENT, 1),
             // ref
@@ -259,11 +257,11 @@ impl BackendType {
             // weakref
             MuType_::WeakRef(_) => TypeEncode::short_weakref(),
             // native pointer or opaque ref
-            MuType_::UPtr(_) |
-            MuType_::UFuncPtr(_) |
-            MuType_::FuncRef(_) |
-            MuType_::ThreadRef |
-            MuType_::StackRef => TypeEncode::short_noref(MINIMAL_ALIGNMENT, 1),
+            MuType_::UPtr(_)
+            | MuType_::UFuncPtr(_)
+            | MuType_::FuncRef(_)
+            | MuType_::ThreadRef
+            | MuType_::StackRef => TypeEncode::short_noref(MINIMAL_ALIGNMENT, 1),
             // tag ref
             MuType_::Tagref64 => TypeEncode::short_tagref(),
             // floating point
@@ -337,8 +335,7 @@ impl BackendType {
     ) -> ByteSize {
         debug!(
             "append_word_ty(): cur_offset={}, cur_ty={}",
-            cur_offset,
-            cur_ty
+            cur_offset, cur_ty
         );
         let cur_backend_ty = BackendType::resolve(cur_ty, vm);
         let cur_offset = math::align_up(cur_offset, cur_backend_ty.alignment);
@@ -362,11 +359,11 @@ impl BackendType {
                 debug_assert!(pointer_aligned);
                 res.push(WordType::WeakRef);
             }
-            MuType_::UPtr(_) |
-            MuType_::UFuncPtr(_) |
-            MuType_::FuncRef(_) |
-            MuType_::ThreadRef |
-            MuType_::StackRef => {
+            MuType_::UPtr(_)
+            | MuType_::UFuncPtr(_)
+            | MuType_::FuncRef(_)
+            | MuType_::ThreadRef
+            | MuType_::StackRef => {
                 debug_assert!(pointer_aligned);
                 res.push(WordType::NonRef);
             }
@@ -420,56 +417,54 @@ impl BackendType {
     pub fn resolve(ty: &P<MuType>, vm: &VM) -> BackendType {
         match ty.v {
             // integer
-            MuType_::Int(size_in_bit) => {
-                match size_in_bit {
-                    1...8 => BackendType {
-                        ty: ty.clone(),
-                        size: 1,
-                        alignment: 1,
-                        struct_layout: None,
-                        elem_size: None,
-                        gc_type: None,
-                        gc_type_hybrid_full: None
-                    },
-                    9...16 => BackendType {
-                        ty: ty.clone(),
-                        size: 2,
-                        alignment: 2,
-                        struct_layout: None,
-                        elem_size: None,
-                        gc_type: None,
-                        gc_type_hybrid_full: None
-                    },
-                    17...32 => BackendType {
-                        ty: ty.clone(),
-                        size: 4,
-                        alignment: 4,
-                        struct_layout: None,
-                        elem_size: None,
-                        gc_type: None,
-                        gc_type_hybrid_full: None
-                    },
-                    33...64 => BackendType {
-                        ty: ty.clone(),
-                        size: 8,
-                        alignment: 8,
-                        struct_layout: None,
-                        elem_size: None,
-                        gc_type: None,
-                        gc_type_hybrid_full: None
-                    },
-                    128 => BackendType {
-                        ty: ty.clone(),
-                        size: 16,
-                        alignment: 16,
-                        struct_layout: None,
-                        elem_size: None,
-                        gc_type: None,
-                        gc_type_hybrid_full: None
-                    },
-                    _ => unimplemented!()
-                }
-            }
+            MuType_::Int(size_in_bit) => match size_in_bit {
+                1...8 => BackendType {
+                    ty: ty.clone(),
+                    size: 1,
+                    alignment: 1,
+                    struct_layout: None,
+                    elem_size: None,
+                    gc_type: None,
+                    gc_type_hybrid_full: None
+                },
+                9...16 => BackendType {
+                    ty: ty.clone(),
+                    size: 2,
+                    alignment: 2,
+                    struct_layout: None,
+                    elem_size: None,
+                    gc_type: None,
+                    gc_type_hybrid_full: None
+                },
+                17...32 => BackendType {
+                    ty: ty.clone(),
+                    size: 4,
+                    alignment: 4,
+                    struct_layout: None,
+                    elem_size: None,
+                    gc_type: None,
+                    gc_type_hybrid_full: None
+                },
+                33...64 => BackendType {
+                    ty: ty.clone(),
+                    size: 8,
+                    alignment: 8,
+                    struct_layout: None,
+                    elem_size: None,
+                    gc_type: None,
+                    gc_type_hybrid_full: None
+                },
+                128 => BackendType {
+                    ty: ty.clone(),
+                    size: 16,
+                    alignment: 16,
+                    struct_layout: None,
+                    elem_size: None,
+                    gc_type: None,
+                    gc_type_hybrid_full: None
+                },
+                _ => unimplemented!()
+            },
             // reference of any type
             MuType_::Ref(_) | MuType_::IRef(_) | MuType_::WeakRef(_) => BackendType {
                 ty: ty.clone(),
@@ -481,11 +476,11 @@ impl BackendType {
                 gc_type_hybrid_full: None
             },
             // pointer/opque ref
-            MuType_::UPtr(_) |
-            MuType_::UFuncPtr(_) |
-            MuType_::FuncRef(_) |
-            MuType_::ThreadRef |
-            MuType_::StackRef => BackendType {
+            MuType_::UPtr(_)
+            | MuType_::UFuncPtr(_)
+            | MuType_::FuncRef(_)
+            | MuType_::ThreadRef
+            | MuType_::StackRef => BackendType {
                 ty: ty.clone(),
                 size: 8,
                 alignment: 8,
@@ -647,8 +642,7 @@ impl fmt::Display for BackendType {
         write!(
             f,
             "{} bytes ({} bytes aligned), ",
-            self.size,
-            self.alignment
+            self.size, self.alignment
         ).unwrap();
         if self.struct_layout.is_some() {
             use utils::vec_utils;
@@ -682,15 +676,15 @@ impl RegGroup {
             MuType_::Int(len) if len <= 64 => RegGroup::GPR,
             MuType_::Int(len) if len == 128 => RegGroup::GPREX,
 
-            MuType_::Ref(_) |
-            MuType_::IRef(_) |
-            MuType_::WeakRef(_) |
-            MuType_::UPtr(_) |
-            MuType_::ThreadRef |
-            MuType_::StackRef |
-            MuType_::Tagref64 |
-            MuType_::FuncRef(_) |
-            MuType_::UFuncPtr(_) => RegGroup::GPR,
+            MuType_::Ref(_)
+            | MuType_::IRef(_)
+            | MuType_::WeakRef(_)
+            | MuType_::UPtr(_)
+            | MuType_::ThreadRef
+            | MuType_::StackRef
+            | MuType_::Tagref64
+            | MuType_::FuncRef(_)
+            | MuType_::UFuncPtr(_) => RegGroup::GPR,
 
             MuType_::Float => RegGroup::FPR,
             MuType_::Double => RegGroup::FPR,

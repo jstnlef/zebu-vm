@@ -60,7 +60,6 @@ fn built() {
     built::write_built_file().expect("Failed to acquire build-time information");
 }
 
-
 #[cfg(feature = "sel4-rumprun-target-side")]
 #[cfg(target_arch = "x86_64")]
 fn main() {

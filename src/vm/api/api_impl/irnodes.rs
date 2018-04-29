@@ -47,13 +47,29 @@ pub type MuCommInst = Flag;
 
 #[derive(Debug)]
 pub enum NodeType {
-    TypeInt { id: MuID, len: i32 },
-    TypeFloat { id: MuID },
-    TypeDouble { id: MuID },
-    TypeUPtr { id: MuID, ty: MuTypeNode },
-    TypeUFuncPtr { id: MuID, sig: MuFuncSigNode },
+    TypeInt {
+        id: MuID,
+        len: i32
+    },
+    TypeFloat {
+        id: MuID
+    },
+    TypeDouble {
+        id: MuID
+    },
+    TypeUPtr {
+        id: MuID,
+        ty: MuTypeNode
+    },
+    TypeUFuncPtr {
+        id: MuID,
+        sig: MuFuncSigNode
+    },
 
-    TypeStruct { id: MuID, fieldtys: Vec<MuTypeNode> },
+    TypeStruct {
+        id: MuID,
+        fieldtys: Vec<MuTypeNode>
+    },
     TypeHybrid {
         id: MuID,
         fixedtys: Vec<MuTypeNode>,
@@ -70,17 +86,41 @@ pub enum NodeType {
         len: usize
     },
 
-    TypeVoid { id: MuID },
-    TypeTagRef64 { id: MuID },
+    TypeVoid {
+        id: MuID
+    },
+    TypeTagRef64 {
+        id: MuID
+    },
 
-    TypeRef { id: MuID, ty: MuTypeNode },
-    TypeIRef { id: MuID, ty: MuTypeNode },
-    TypeWeakRef { id: MuID, ty: MuTypeNode },
-    TypeFuncRef { id: MuID, sig: MuFuncSigNode },
-    TypeThreadRef { id: MuID },
-    TypeStackRef { id: MuID },
-    TypeFrameCursorRef { id: MuID },
-    TypeIRBuilderRef { id: MuID }
+    TypeRef {
+        id: MuID,
+        ty: MuTypeNode
+    },
+    TypeIRef {
+        id: MuID,
+        ty: MuTypeNode
+    },
+    TypeWeakRef {
+        id: MuID,
+        ty: MuTypeNode
+    },
+    TypeFuncRef {
+        id: MuID,
+        sig: MuFuncSigNode
+    },
+    TypeThreadRef {
+        id: MuID
+    },
+    TypeStackRef {
+        id: MuID
+    },
+    TypeFrameCursorRef {
+        id: MuID
+    },
+    TypeIRBuilderRef {
+        id: MuID
+    }
 }
 
 #[derive(Debug)]
@@ -112,7 +152,10 @@ pub enum NodeConst {
         ty: MuTypeNode,
         value: f64
     },
-    ConstNull { id: MuID, ty: MuTypeNode },
+    ConstNull {
+        id: MuID,
+        ty: MuTypeNode
+    },
     ConstSeq {
         id: MuID,
         ty: MuTypeNode,
@@ -193,7 +236,10 @@ pub enum NodeNewStackClause {
         tys: Vec<MuTypeNode>,
         vars: Vec<MuVarNode>
     },
-    ThrowExc { id: MuID, exc: MuVarNode }
+    ThrowExc {
+        id: MuID,
+        exc: MuVarNode
+    }
 }
 
 #[derive(Debug)]
@@ -234,7 +280,10 @@ pub enum NodeInst {
         if_true: MuVarNode,
         if_false: MuVarNode
     },
-    NodeBranch { id: MuID, dest: MuDestClause },
+    NodeBranch {
+        id: MuID,
+        dest: MuDestClause
+    },
     NodeBranch2 {
         id: MuID,
         cond: MuVarNode,
@@ -264,8 +313,14 @@ pub enum NodeInst {
         callee: MuVarNode,
         args: Vec<MuVarNode>
     },
-    NodeRet { id: MuID, rvs: Vec<MuVarNode> },
-    NodeThrow { id: MuID, exc: MuVarNode },
+    NodeRet {
+        id: MuID,
+        rvs: Vec<MuVarNode>
+    },
+    NodeThrow {
+        id: MuID,
+        exc: MuVarNode
+    },
     NodeExtractValue {
         id: MuID,
         result_id: MuID,
@@ -417,7 +472,10 @@ pub enum NodeInst {
         opnd: MuVarNode,
         exc_clause: Option<MuExcClause>
     },
-    NodeFence { id: MuID, ord: MuMemoryOrder },
+    NodeFence {
+        id: MuID,
+        ord: MuMemoryOrder
+    },
     NodeTrap {
         id: MuID,
         result_ids: Vec<MuID>,

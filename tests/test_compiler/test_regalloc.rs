@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-extern crate mu;
 extern crate libloading;
+extern crate mu;
 
 use mu::linkutils;
 use mu::linkutils::aot;
@@ -463,7 +463,6 @@ fn create_simple_spill() -> VM {
     vm
 }
 
-
 #[cfg(target_arch = "aarch64")]
 fn create_simple_spill() -> VM {
     let vm = VM::new();
@@ -528,7 +527,6 @@ fn create_simple_spill() -> VM {
     ssa!            ((vm, simple_spill_v1) <int64> blk_start_t26);
     ssa!            ((vm, simple_spill_v1) <int64> blk_start_t27);
     ssa!            ((vm, simple_spill_v1) <int64> blk_start_t28);
-
 
     // %res = ADD %t1 %t2
     ssa!            ((vm, simple_spill_v1) <int64> blk_start_res);
@@ -710,9 +708,11 @@ fn test_coalesce_branch_moves() {
         // check
         let fv_id = func_ver.id();
 
-        assert!(get_number_of_moves(fv_id, &vm) == 2,
+        assert!(
+            get_number_of_moves(fv_id, &vm) == 2,
             "The function should not yield any mov instructions other than \
-            mov %rsp->%rbp and mov %rbp->%rsp (some possible coalescing failed)");
+             mov %rsp->%rbp and mov %rbp->%rsp (some possible coalescing failed)"
+        );
     }
 }
 
@@ -785,10 +785,12 @@ fn test_coalesce_args() {
         // check
         let fv_id = func_ver.id();
 
-        assert!(get_number_of_moves(fv_id, &vm) == 2,
+        assert!(
+            get_number_of_moves(fv_id, &vm) == 2,
             "The function should not yield any mov instructions other than \
-            mov %rsp->%rbp and mov %rbp->%rsp (or MOV SP -> FP on aarch64) \
-            (some possible coalescing failed)");
+             mov %rsp->%rbp and mov %rbp->%rsp (or MOV SP -> FP on aarch64) \
+             (some possible coalescing failed)"
+        );
     }
 }
 
@@ -853,8 +855,10 @@ fn test_coalesce_branch2_moves() {
         // check
         let fv_id = func_ver.id();
 
-        assert!(get_number_of_moves(fv_id, &vm) <= 4,
-            "too many moves (some possible coalescing failed)");
+        assert!(
+            get_number_of_moves(fv_id, &vm) <= 4,
+            "too many moves (some possible coalescing failed)"
+        );
     }
 
     backend::emit_context(&vm);
@@ -868,10 +872,13 @@ fn test_coalesce_branch2_moves() {
     let lib = libloading::Library::new(dylib.as_os_str()).unwrap();
     unsafe {
         let coalesce_branch2_moves: libloading::Symbol<
-            unsafe extern "C" fn(u64, u64, u64, u64, u64, u64) -> u64,
+            unsafe extern "C" fn(u64, u64, u64, u64, u64, u64) -> u64
         > = match lib.get(b"coalesce_branch2_moves") {
             Ok(symbol) => symbol,
-            Err(e) => panic!("cannot find symbol coalesce_branch2_moves in dylib: {:?}", e),
+            Err(e) => panic!(
+                "cannot find symbol coalesce_branch2_moves in dylib: {:?}",
+                e
+            )
         };
 
         let res = coalesce_branch2_moves(1, 1, 10, 10, 0, 0);
@@ -1436,7 +1443,6 @@ fn create_empty_func_foo6(vm: &VM) {
     define_func_ver!((vm) foo6_v1 (entry: blk_entry) {blk_entry});
 }
 
-
 #[test]
 #[allow(unused_variables)]
 #[allow(overflowing_literals)]
@@ -1733,7 +1739,6 @@ fn spill_int8() -> VM {
     constdef!   ((vm) <int8> int8_29 = Constant::Int(29));
     constdef!   ((vm) <int8> int8_30 = Constant::Int(30));
 
-
     funcsig!    ((vm) sig = () -> (int8));
     funcdecl!   ((vm) <sig> spill_int8);
     funcdef!    ((vm) <sig> spill_int8 VERSION spill_int8_v1);
@@ -1994,7 +1999,6 @@ fn spill_int8() -> VM {
     inst!   ((vm, spill_int8_v1) blk_ret_add30:
         res30 = BINOP (BinOp::Add) res29 v30
     );
-
 
     inst!   ((vm, spill_int8_v1) blk_ret_ret:
         RET (res30)

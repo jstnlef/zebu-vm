@@ -49,10 +49,7 @@ impl fmt::Debug for Node {
         write!(
             f,
             "Node({}): color={:?}, group={:?}, spill_cost={}",
-            self.temp,
-            self.color,
-            self.group,
-            self.spill_cost
+            self.temp, self.color, self.group, self.spill_cost
         )
     }
 }
@@ -620,13 +617,11 @@ fn build_cfg_nodes(cf: &mut CompiledFunction) -> LinkedHashMap<MuName, CFGBlockN
             // last inst (we need to skip symbols)
             let last_inst = match mc.get_last_inst(range.end) {
                 Some(last) => last,
-                None => {
-                    panic!(
-                        "cannot find last instruction in block {}, \
-                         this block contains no instruction?",
-                        block
-                    )
-                }
+                None => panic!(
+                    "cannot find last instruction in block {}, \
+                     this block contains no instruction?",
+                    block
+                )
             };
             trace_if!(
                 TRACE_LIVENESS,
@@ -798,8 +793,8 @@ fn global_liveness_analysis(
             }
 
             // is in/out changed in this iteration?
-            let n_changed = !in_set_old.equals(livein.get(node).unwrap()) ||
-                !out_set_old.equals(liveout.get(node).unwrap());
+            let n_changed = !in_set_old.equals(livein.get(node).unwrap())
+                || !out_set_old.equals(liveout.get(node).unwrap());
 
             if TRACE_LIVENESS {
                 trace!("block {}", node);

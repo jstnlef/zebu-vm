@@ -168,10 +168,9 @@ impl APIHandleValue {
     /// matches the handle as ref or iref
     pub fn as_ref_or_iref(&self) -> (P<MuType>, Address) {
         match self {
-            &APIHandleValue::Ref(ref ty, addr) | &APIHandleValue::IRef(ref ty, addr) => (
-                ty.clone(),
-                addr
-            ),
+            &APIHandleValue::Ref(ref ty, addr) | &APIHandleValue::IRef(ref ty, addr) => {
+                (ty.clone(), addr)
+            }
             _ => panic!("expected Ref or IRef handle")
         }
     }
@@ -195,16 +194,14 @@ impl APIHandleValue {
     /// matches iref/ref/uptr/ufp handles and extracts address
     pub fn as_address(&self) -> Address {
         match self {
-            &APIHandleValue::IRef(_, addr) |
-            &APIHandleValue::Ref(_, addr) |
-            &APIHandleValue::UPtr(_, addr) |
-            &APIHandleValue::UFP(_, addr) => addr,
-            _ => {
-                panic!(
-                    "expected iref/ref/uptr/ufp which contains a pointer, found {}",
-                    self
-                )
-            }
+            &APIHandleValue::IRef(_, addr)
+            | &APIHandleValue::Ref(_, addr)
+            | &APIHandleValue::UPtr(_, addr)
+            | &APIHandleValue::UFP(_, addr) => addr,
+            _ => panic!(
+                "expected iref/ref/uptr/ufp which contains a pointer, found {}",
+                self
+            )
         }
     }
 

@@ -51,8 +51,7 @@ impl MuCtx {
         let ctx_ptr = self as *mut MuCtx;
         debug!(
             "Deallocating MuCtx {:?} and CMuCtx {:?}...",
-            ctx_ptr,
-            c_struct
+            ctx_ptr, c_struct
         );
         unsafe {
             Box::from_raw(c_struct);
@@ -75,42 +74,42 @@ impl MuCtx {
 
     pub fn handle_from_sint8(&mut self, num: i8, len: c_int) -> *const APIHandle {
         trace!("handle_from_sint8");
-        prepare_handle((self.get_mvm().vm.handle_from_sint8(num, len as usize)))
+        prepare_handle(self.get_mvm().vm.handle_from_sint8(num, len as usize))
     }
 
     pub fn handle_from_uint8(&mut self, num: u8, len: c_int) -> *const APIHandle {
         trace!("handle_from_uint8");
-        prepare_handle((self.get_mvm().vm.handle_from_uint8(num, len as usize)))
+        prepare_handle(self.get_mvm().vm.handle_from_uint8(num, len as usize))
     }
 
     pub fn handle_from_sint16(&mut self, num: i16, len: c_int) -> *const APIHandle {
         trace!("handle_from_sint16");
-        prepare_handle((self.get_mvm().vm.handle_from_sint16(num, len as usize)))
+        prepare_handle(self.get_mvm().vm.handle_from_sint16(num, len as usize))
     }
 
     pub fn handle_from_uint16(&mut self, num: u16, len: c_int) -> *const APIHandle {
         trace!("handle_from_uint16");
-        prepare_handle((self.get_mvm().vm.handle_from_uint16(num, len as usize)))
+        prepare_handle(self.get_mvm().vm.handle_from_uint16(num, len as usize))
     }
 
     pub fn handle_from_sint32(&mut self, num: i32, len: c_int) -> *const APIHandle {
         trace!("handle_from_sint32");
-        prepare_handle((self.get_mvm().vm.handle_from_sint32(num, len as usize)))
+        prepare_handle(self.get_mvm().vm.handle_from_sint32(num, len as usize))
     }
 
     pub fn handle_from_uint32(&mut self, num: u32, len: c_int) -> *const APIHandle {
         trace!("handle_from_uint32");
-        prepare_handle((self.get_mvm().vm.handle_from_uint32(num, len as usize)))
+        prepare_handle(self.get_mvm().vm.handle_from_uint32(num, len as usize))
     }
 
     pub fn handle_from_sint64(&mut self, num: i64, len: c_int) -> *const APIHandle {
         trace!("handle_from_sint64");
-        prepare_handle((self.get_mvm().vm.handle_from_sint64(num, len as usize)))
+        prepare_handle(self.get_mvm().vm.handle_from_sint64(num, len as usize))
     }
 
     pub fn handle_from_uint64(&mut self, num: u64, len: c_int) -> *const APIHandle {
         trace!("handle_from_uint64");
-        prepare_handle((self.get_mvm().vm.handle_from_uint64(num, len as usize)))
+        prepare_handle(self.get_mvm().vm.handle_from_uint64(num, len as usize))
     }
 
     pub fn handle_from_uint64s(&mut self, nums: &[u64], len: c_int) -> *const APIHandle {
@@ -120,26 +119,26 @@ impl MuCtx {
 
     pub fn handle_from_float(&mut self, num: f32) -> *const APIHandle {
         trace!("handle_from_float");
-        prepare_handle((self.get_mvm().vm.handle_from_float(num)))
+        prepare_handle(self.get_mvm().vm.handle_from_float(num))
     }
 
     pub fn handle_from_double(&mut self, num: f64) -> *const APIHandle {
         trace!("handle_from_double");
-        prepare_handle((self.get_mvm().vm.handle_from_double(num)))
+        prepare_handle(self.get_mvm().vm.handle_from_double(num))
     }
 
     pub fn handle_from_ptr(&mut self, mu_type: MuID, ptr: CMuCPtr) -> *const APIHandle {
         trace!("handle_from_ptr: ty#{}, {:?}", mu_type, ptr);
         let addr = Address::from_mut_ptr(ptr);
 
-        prepare_handle((self.get_mvm().vm.handle_from_uptr(mu_type, addr)))
+        prepare_handle(self.get_mvm().vm.handle_from_uptr(mu_type, addr))
     }
 
     pub fn handle_from_fp(&mut self, mu_type: MuID, fp: CMuCFP) -> *const APIHandle {
         trace!("handle_from_fp: ty#{}, {:?}", mu_type, fp);
         let addr = Address::from_mut_ptr(fp);
 
-        prepare_handle((self.get_mvm().vm.handle_from_ufp(mu_type, addr)))
+        prepare_handle(self.get_mvm().vm.handle_from_ufp(mu_type, addr))
     }
 
     pub fn handle_to_sint8(&mut self, opnd: &APIHandle) -> i8 {

@@ -12,9 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-extern crate mu;
-extern crate log;
 extern crate libloading;
+extern crate log;
+extern crate mu;
 
 use self::mu::ast::types::*;
 use self::mu::ast::ir::*;
@@ -259,7 +259,7 @@ fn lshr() -> VM {
 
 #[test]
 fn test_add_simple() {
-    build_and_run_test! (add, add_test1);
+    build_and_run_test!(add, add_test1);
 }
 
 fn add() -> VM {
@@ -304,10 +304,10 @@ fn add() -> VM {
 
 #[test]
 fn test_add_int64_n() {
-    build_and_run_test! (add_int64_n, add_int64_n_test1);
-    build_and_run_test! (add_int64_n, add_int64_n_test2);
-    build_and_run_test! (add_int64_n, add_int64_n_test3);
-    build_and_run_test! (add_int64_n, add_int64_n_test4);
+    build_and_run_test!(add_int64_n, add_int64_n_test1);
+    build_and_run_test!(add_int64_n, add_int64_n_test2);
+    build_and_run_test!(add_int64_n, add_int64_n_test3);
+    build_and_run_test!(add_int64_n, add_int64_n_test4);
 }
 
 fn add_int64_n() -> VM {
@@ -375,9 +375,9 @@ fn add_int64_n() -> VM {
 
 #[test]
 fn test_add_int64_z() {
-    build_and_run_test! (add_int64_z, add_int64_z_test1);
-    build_and_run_test! (add_int64_z, add_int64_z_test2);
-    build_and_run_test! (add_int64_z, add_int64_z_test3);
+    build_and_run_test!(add_int64_z, add_int64_z_test1);
+    build_and_run_test!(add_int64_z, add_int64_z_test2);
+    build_and_run_test!(add_int64_z, add_int64_z_test3);
 }
 
 fn add_int64_z() -> VM {
@@ -438,8 +438,8 @@ fn add_int64_z() -> VM {
 
 #[test]
 fn test_add_int64_c() {
-    build_and_run_test! (add_int64_c, add_int64_c_test1);
-    build_and_run_test! (add_int64_c, add_int64_c_test2);
+    build_and_run_test!(add_int64_c, add_int64_c_test1);
+    build_and_run_test!(add_int64_c, add_int64_c_test2);
 }
 
 fn add_int64_c() -> VM {
@@ -493,10 +493,10 @@ fn add_int64_c() -> VM {
 
 #[test]
 fn test_add_int64_v() {
-    build_and_run_test! (add_int64_v, add_int64_v_test1);
-    build_and_run_test! (add_int64_v, add_int64_v_test2);
-    build_and_run_test! (add_int64_v, add_int64_v_test3);
-    build_and_run_test! (add_int64_v, add_int64_v_test4);
+    build_and_run_test!(add_int64_v, add_int64_v_test1);
+    build_and_run_test!(add_int64_v, add_int64_v_test2);
+    build_and_run_test!(add_int64_v, add_int64_v_test3);
+    build_and_run_test!(add_int64_v, add_int64_v_test4);
 }
 
 fn add_int64_v() -> VM {
@@ -564,8 +564,8 @@ fn add_int64_v() -> VM {
 
 #[test]
 fn test_add_int64_nzc() {
-    build_and_run_test! (add_int64_nzc, add_int64_nzc_test1);
-    build_and_run_test! (add_int64_nzc, add_int64_nzc_test2);
+    build_and_run_test!(add_int64_nzc, add_int64_nzc_test1);
+    build_and_run_test!(add_int64_nzc, add_int64_nzc_test2);
 }
 
 fn add_int64_nzc() -> VM {

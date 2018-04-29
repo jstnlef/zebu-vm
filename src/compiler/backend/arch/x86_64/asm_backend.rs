@@ -21,7 +21,7 @@ use utils::Address;
 use utils::POINTER_SIZE;
 use compiler::backend::x86_64;
 use compiler::backend::x86_64::CodeGenerator;
-use compiler::backend::{Reg, Mem};
+use compiler::backend::{Mem, Reg};
 use compiler::backend::x86_64::check_op_len;
 use compiler::machine_code::MachineCode;
 use vm::VM;
@@ -41,7 +41,7 @@ use std::usize;
 use std::slice::Iter;
 use std::ops;
 use std::collections::HashSet;
-use std::sync::{RwLock, Arc};
+use std::sync::{Arc, RwLock};
 use std::any::Any;
 use std::path;
 use std::io::prelude::*;
@@ -295,7 +295,6 @@ impl ASMCode {
             inst.succs.clear();
             // 3. add the inst
             ret.code.push(inst);
-
 
             // insert code after this instruction
             if insert_after.contains_key(&i) {
@@ -1136,7 +1135,7 @@ pub struct ASMCodeGen {
 /// placeholder in assembly code for a temporary
 const REG_PLACEHOLDER_LEN: usize = 5;
 lazy_static! {
-    pub static ref REG_PLACEHOLDER : MuName = {
+    pub static ref REG_PLACEHOLDER: MuName = {
         let blank_spaces = [' ' as u8; REG_PLACEHOLDER_LEN];
         Arc::new(format!("%{}", str::from_utf8(&blank_spaces).unwrap()))
     };
@@ -1146,7 +1145,7 @@ lazy_static! {
 //  this is a fairly random number, but a frame is something smaller than 10^10
 const FRAME_SIZE_PLACEHOLDER_LEN: usize = 10;
 lazy_static! {
-    pub static ref FRAME_SIZE_PLACEHOLDER : String = {
+    pub static ref FRAME_SIZE_PLACEHOLDER: String = {
         let blank_spaces = [' ' as u8; FRAME_SIZE_PLACEHOLDER_LEN];
         format!("{}", str::from_utf8(&blank_spaces).unwrap())
     };
@@ -1248,7 +1247,6 @@ impl ASMCodeGen {
             None
         )
     }
-
 
     /// appends a return instruction
     fn add_asm_ret(&mut self, code: String) {
@@ -1565,7 +1563,6 @@ impl ASMCodeGen {
             }
             map
         };
-
 
         (result_str, uses)
     }
@@ -2054,8 +2051,8 @@ impl ASMCodeGen {
             self.add_asm_inst(
                 asm,
                 linked_hashmap! {
-                id2 => vec![loc2]
-            },
+                    id2 => vec![loc2]
+                },
                 uses,
                 true
             )
@@ -2162,8 +2159,8 @@ impl ASMCodeGen {
             self.add_asm_inst(
                 asm,
                 linked_hashmap! {
-                id2 => vec![loc2]
-            },
+                    id2 => vec![loc2]
+                },
                 uses,
                 true
             )
@@ -2470,12 +2467,10 @@ impl CodeGenerator for ASMCodeGen {
             Some(ref mut block) => {
                 block.end_inst = line;
             }
-            None => {
-                panic!(
-                    "trying to end block {} which hasnt been started",
-                    block_name
-                )
-            }
+            None => panic!(
+                "trying to end block {} which hasnt been started",
+                block_name
+            )
         }
     }
 
@@ -2506,8 +2501,12 @@ impl CodeGenerator for ASMCodeGen {
 
         // record the placeholder position so we can patch it later
         let line = self.line();
-        self.cur_mut()
-            .add_frame_size_patchpoint(ASMLocation::new(line, 7, FRAME_SIZE_PLACEHOLDER_LEN, 0));
+        self.cur_mut().add_frame_size_patchpoint(ASMLocation::new(
+            line,
+            7,
+            FRAME_SIZE_PLACEHOLDER_LEN,
+            0
+        ));
 
         self.add_asm_inst(
             asm,
@@ -3807,13 +3806,11 @@ pub fn emit_code(fv: &mut MuFunctionVersion, vm: &VM) {
     file_path.push((*func.name()).clone() + ".S");
     {
         let mut file = match File::create(file_path.as_path()) {
-            Err(why) => {
-                panic!(
-                    "couldn't create emission file {}: {}",
-                    file_path.to_str().unwrap(),
-                    why
-                )
-            }
+            Err(why) => panic!(
+                "couldn't create emission file {}: {}",
+                file_path.to_str().unwrap(),
+                why
+            ),
             Ok(file) => file
         };
         // constants in text section
@@ -3828,13 +3825,11 @@ pub fn emit_code(fv: &mut MuFunctionVersion, vm: &VM) {
         // write code
         let code = cf.mc.as_ref().unwrap().emit();
         match file.write_all(code.as_slice()) {
-            Err(why) => {
-                panic!(
-                    "couldn'd write to file {}: {}",
-                    file_path.to_str().unwrap(),
-                    why
-                )
-            }
+            Err(why) => panic!(
+                "couldn'd write to file {}: {}",
+                file_path.to_str().unwrap(),
+                why
+            ),
             Ok(_) => info!("emit code to {}", file_path.to_str().unwrap())
         }
     }
@@ -3846,42 +3841,34 @@ pub fn emit_code(fv: &mut MuFunctionVersion, vm: &VM) {
         demangled_path.push((*func.name()).clone() + ".demangled.S");
 
         let mut demangled_file = match File::create(demangled_path.as_path()) {
-            Err(why) => {
-                panic!(
-                    "couldn't create demangled emission file {}: {}",
-                    demangled_path.to_str().unwrap(),
-                    why
-                )
-            }
+            Err(why) => panic!(
+                "couldn't create demangled emission file {}: {}",
+                demangled_path.to_str().unwrap(),
+                why
+            ),
             Ok(file) => file
         };
         let mut mangled_file = match File::open(file_path.as_path()) {
-            Err(why) => {
-                panic!(
-                    "couldn't create demangled emission file {}: {}",
-                    demangled_path.to_str().unwrap(),
-                    why
-                )
-            }
+            Err(why) => panic!(
+                "couldn't create demangled emission file {}: {}",
+                demangled_path.to_str().unwrap(),
+                why
+            ),
             Ok(file) => file
         };
         let mut f = String::new();
         mangled_file.read_to_string(&mut f).unwrap();
         let d = demangle_text(&f);
         match demangled_file.write_all(d.as_bytes()) {
-            Err(why) => {
-                panic!(
-                    "couldn'd write to file {}: {}",
-                    demangled_path.to_str().unwrap(),
-                    why
-                )
-            }
-            Ok(_) => {
-                info!(
-                    "emit demangled code to {}",
-                    demangled_path.to_str().unwrap()
-                )
-            }
+            Err(why) => panic!(
+                "couldn'd write to file {}: {}",
+                demangled_path.to_str().unwrap(),
+                why
+            ),
+            Ok(_) => info!(
+                "emit demangled code to {}",
+                demangled_path.to_str().unwrap()
+            )
         }
     }
 }
@@ -3939,13 +3926,10 @@ fn write_const(f: &mut File, constant: P<Value>, loc: P<Value>) {
     // label
     let label = match loc.v {
         Value_::Memory(MemoryLocation::Symbolic { ref label, .. }) => label.clone(),
-        _ => {
-            panic!(
-                "expecing a symbolic memory location for constant {}, found {}",
-                constant,
-                loc
-            )
-        }
+        _ => panic!(
+            "expecing a symbolic memory location for constant {}, found {}",
+            constant, loc
+        )
     };
     write_align(f, MAX_ALIGN);
     writeln!(f, "{}:", symbol(&mangle_name(label))).unwrap();
@@ -3969,22 +3953,14 @@ fn write_const_value(f: &mut File, constant: P<Value>) {
         &Constant::Int(val) => {
             let len = ty.get_int_length().unwrap();
             match len {
-                8 => {
-                    f.write_fmt(format_args!("\t.byte {}\n", val as u8))
-                        .unwrap()
-                }
-                16 => {
-                    f.write_fmt(format_args!("\t.word {}\n", val as u16))
-                        .unwrap()
-                }
-                32 => {
-                    f.write_fmt(format_args!("\t.long {}\n", val as u32))
-                        .unwrap()
-                }
-                64 => {
-                    f.write_fmt(format_args!("\t.quad {}\n", val as u64))
-                        .unwrap()
-                }
+                8 => f.write_fmt(format_args!("\t.byte {}\n", val as u8))
+                    .unwrap(),
+                16 => f.write_fmt(format_args!("\t.word {}\n", val as u16))
+                    .unwrap(),
+                32 => f.write_fmt(format_args!("\t.long {}\n", val as u32))
+                    .unwrap(),
+                64 => f.write_fmt(format_args!("\t.quad {}\n", val as u64))
+                    .unwrap(),
                 _ => panic!("unimplemented int length: {}", len)
             }
         }
@@ -4007,11 +3983,9 @@ fn write_const_value(f: &mut File, constant: P<Value>) {
         }
         &Constant::NullRef => f.write_fmt(format_args!("\t.quad 0\n")).unwrap(),
         &Constant::ExternSym(ref name) => f.write_fmt(format_args!("\t.quad {}\n", name)).unwrap(),
-        &Constant::List(ref vals) => {
-            for val in vals {
-                write_const_value(f, val.clone())
-            }
-        }
+        &Constant::List(ref vals) => for val in vals {
+            write_const_value(f, val.clone())
+        },
         _ => unimplemented!()
     }
 }
@@ -4050,13 +4024,11 @@ pub fn emit_sym_table(vm: &VM) {
     file_path_st.push(format!("{}", AOT_EMIT_SYM_TABLE_FILE));
 
     let mut file_st = match File::create(file_path_st.as_path()) {
-        Err(why) => {
-            panic!(
-                "couldn't create SYM TABLE file {}: {}",
-                file_path_st.to_str().unwrap(),
-                why
-            )
-        }
+        Err(why) => panic!(
+            "couldn't create SYM TABLE file {}: {}",
+            file_path_st.to_str().unwrap(),
+            why
+        ),
         Ok(file) => file
     };
 
@@ -4085,12 +4057,10 @@ pub fn emit_sym_table(vm: &VM) {
                 sym_vec.push((*symbol).clone());
             }
             // CF.start can't reach this state
-            _ => {
-                panic!(
-                    "Sym_Table_start: expecting Relocatable location, found {}",
-                    theCF.start
-                )
-            }
+            _ => panic!(
+                "Sym_Table_start: expecting Relocatable location, found {}",
+                theCF.start
+            )
         }
         match theCF.end {
             // CF.start can only be relocatable , otherwise panic
@@ -4099,12 +4069,10 @@ pub fn emit_sym_table(vm: &VM) {
                 sym_vec.push((*symbol).clone());
             }
             // CF.end can't reach this state
-            _ => {
-                panic!(
-                    "Sym_Table_end: expecting Relocatable location, found {}",
-                    theCF.end
-                )
-            }
+            _ => panic!(
+                "Sym_Table_end: expecting Relocatable location, found {}",
+                theCF.end
+            )
         }
 
         // for &(ref callsite, ref dest) in theCF.frame.get_exception_callsites().iter(){
@@ -4154,7 +4122,6 @@ pub fn emit_sym_table(vm: &VM) {
     }
 }
 
-
 use std::collections::HashMap;
 
 /// emit vm context for current session, considering relocation symbols/fields from the client
@@ -4171,13 +4138,11 @@ pub fn emit_context_with_reloc(
     file_path.push(&vm.vm_options.flag_aot_emit_dir);
     file_path.push(AOT_EMIT_CONTEXT_FILE);
     let mut file = match File::create(file_path.as_path()) {
-        Err(why) => {
-            panic!(
-                "couldn't create context file {}: {}",
-                file_path.to_str().unwrap(),
-                why
-            )
-        }
+        Err(why) => panic!(
+            "couldn't create context file {}: {}",
+            file_path.to_str().unwrap(),
+            why
+        ),
         Ok(file) => file
     };
 
@@ -4279,13 +4244,11 @@ pub fn emit_context_with_reloc(
                         // get the relocatable label
                         let label = match relocatable_refs.get(&load_ref) {
                             Some(label) => label,
-                            None => {
-                                panic!(
-                                    "cannot find label for address {}, it is not dumped by GC \
-                                     (why GC didn't trace to it?)",
-                                    load_ref
-                                )
-                            }
+                            None => panic!(
+                                "cannot find label for address {}, it is not dumped by GC \
+                                 (why GC didn't trace to it?)",
+                                load_ref
+                            )
                         };
                         file.write_fmt(format_args!("\t.quad {}\n", symbol(&label)))
                             .unwrap();

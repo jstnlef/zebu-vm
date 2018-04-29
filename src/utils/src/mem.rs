@@ -65,7 +65,6 @@ pub fn munmap(addr: Address, size: ByteSize) {
 
 /// malloc's and zeroes the memory
 pub unsafe fn malloc_zero(size: usize) -> *mut u8 {
-    use self::memsec;
     match memsec::malloc(size) {
         Some(ptr) => {
             memsec::memzero(ptr, size);

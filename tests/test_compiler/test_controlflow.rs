@@ -66,7 +66,7 @@ fn switch() -> VM {
         hdr: MuEntityHeader::unnamed(vm.next_id()),
         value: None,
         ops: vec![
-            a.clone(), // 0
+            a.clone(),             // 0
             int64_0_local.clone(), // 1
             int64_1_local.clone(), // 2
             int64_2_local.clone(), // 3
@@ -78,9 +78,27 @@ fn switch() -> VM {
                 args: vec![]
             },
             branches: vec![
-                (1, Destination{target: blk_ret0.hdr.clone(), args: vec![]}),
-                (2, Destination{target: blk_ret1.hdr.clone(), args: vec![]}),
-                (3, Destination{target: blk_ret2.hdr.clone(), args: vec![]})
+                (
+                    1,
+                    Destination {
+                        target: blk_ret0.hdr.clone(),
+                        args: vec![]
+                    }
+                ),
+                (
+                    2,
+                    Destination {
+                        target: blk_ret1.hdr.clone(),
+                        args: vec![]
+                    }
+                ),
+                (
+                    3,
+                    Destination {
+                        target: blk_ret2.hdr.clone(),
+                        args: vec![]
+                    }
+                ),
             ]
         }
     });
@@ -1043,8 +1061,16 @@ fn branch2_eq_50p_2() -> VM {
 
 #[test]
 fn test_branch2_high_prob_branch_cannot_fallthrough() {
-    build_and_run_test!(branch2, branch2_test1, branch2_high_prob_branch_cannot_fallthrough);
-    build_and_run_test!(branch2, branch2_test2, branch2_high_prob_branch_cannot_fallthrough);
+    build_and_run_test!(
+        branch2,
+        branch2_test1,
+        branch2_high_prob_branch_cannot_fallthrough
+    );
+    build_and_run_test!(
+        branch2,
+        branch2_test2,
+        branch2_high_prob_branch_cannot_fallthrough
+    );
 }
 
 fn branch2_high_prob_branch_cannot_fallthrough() -> VM {

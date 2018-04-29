@@ -62,7 +62,6 @@ pub use compiler::passes::dot_gen::DotGen;
 mod uir_gen;
 pub use compiler::passes::uir_gen::UIRGen;
 
-
 /// A trait for implementing compiler passes.
 ///
 /// A Mu function is supposed to be travelled in the following order:

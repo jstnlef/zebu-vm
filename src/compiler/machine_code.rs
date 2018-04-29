@@ -104,13 +104,11 @@ impl CompiledFunction {
     pub fn mc(&self) -> &Box<MachineCode + Send + Sync> {
         match self.mc {
             Some(ref mc) => mc,
-            None => {
-                panic!(
-                    "trying to get mc from a compiled function.
+            None => panic!(
+                "trying to get mc from a compiled function.
                     But machine code is None (probably this compiled function is restored from
                     boot image and mc is thrown away)"
-                )
-            }
+            )
         }
     }
 
@@ -274,13 +272,11 @@ pub trait MachineCode {
                 // last inst (we need to skip symbols)
                 let last_inst = match self.get_last_inst(range.end) {
                     Some(last) => last,
-                    None => {
-                        panic!(
-                            "cannot find last instruction in block {}, \
-                             this block contains no instruction?",
-                            block
-                        )
-                    }
+                    None => panic!(
+                        "cannot find last instruction in block {}, \
+                         this block contains no instruction?",
+                        block
+                    )
                 };
                 trace!(
                     "Block {}: start_inst={}, end_inst(inclusive)={}",

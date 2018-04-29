@@ -282,7 +282,6 @@ fn get_field_iref1() -> VM {
         RET (ret)
     );
 
-
     define_block!   ((vm, get_field_iref1_v1) blk_entry(x) {
         blk_entry_get_iref, blk_entry_get_field_iref1, blk_entry_ret
     });
@@ -1026,8 +1025,9 @@ fn test_shift_iref_ele_4bytes() {
     let lib = linkutils::aot::compile_fnc("shift_iref_ele_4bytes", &shift_iref_ele_4bytes);
 
     unsafe {
-        let shift_iref_ele_4bytes: libloading::Symbol<unsafe extern "C" fn(u64, u64) -> u64> =
-            lib.get(b"shift_iref_ele_4bytes").unwrap();
+        let shift_iref_ele_4bytes: libloading::Symbol<
+            unsafe extern "C" fn(u64, u64) -> u64
+        > = lib.get(b"shift_iref_ele_4bytes").unwrap();
 
         let res = shift_iref_ele_4bytes(0, 0);
         println!("shift_iref_ele_4bytes(0, 0) = {}", res);
@@ -1087,8 +1087,9 @@ fn test_shift_iref_ele_8bytes() {
     let lib = linkutils::aot::compile_fnc("shift_iref_ele_8bytes", &shift_iref_ele_8bytes);
 
     unsafe {
-        let shift_iref_ele_8bytes: libloading::Symbol<unsafe extern "C" fn(u64, u64) -> u64> =
-            lib.get(b"shift_iref_ele_8bytes").unwrap();
+        let shift_iref_ele_8bytes: libloading::Symbol<
+            unsafe extern "C" fn(u64, u64) -> u64
+        > = lib.get(b"shift_iref_ele_8bytes").unwrap();
 
         let res = shift_iref_ele_8bytes(0, 0);
         println!("shift_iref_ele_8bytes(0, 0) = {}", res);
@@ -1147,8 +1148,9 @@ fn test_shift_iref_ele_9bytes() {
     let lib = linkutils::aot::compile_fnc("shift_iref_ele_9bytes", &shift_iref_ele_9bytes);
 
     unsafe {
-        let shift_iref_ele_9bytes: libloading::Symbol<unsafe extern "C" fn(u64, u64) -> u64> =
-            lib.get(b"shift_iref_ele_9bytes").unwrap();
+        let shift_iref_ele_9bytes: libloading::Symbol<
+            unsafe extern "C" fn(u64, u64) -> u64
+        > = lib.get(b"shift_iref_ele_9bytes").unwrap();
 
         let res = shift_iref_ele_9bytes(0, 0);
         println!("shift_iref_ele_9bytes(0, 0) = {}", res);
@@ -1208,8 +1210,9 @@ fn test_shift_iref_ele_16bytes() {
     let lib = linkutils::aot::compile_fnc("shift_iref_ele_16bytes", &shift_iref_ele_16bytes);
 
     unsafe {
-        let shift_iref_ele_16bytes: libloading::Symbol<unsafe extern "C" fn(u64, u64) -> u64> =
-            lib.get(b"shift_iref_ele_16bytes").unwrap();
+        let shift_iref_ele_16bytes: libloading::Symbol<
+            unsafe extern "C" fn(u64, u64) -> u64
+        > = lib.get(b"shift_iref_ele_16bytes").unwrap();
 
         let res = shift_iref_ele_16bytes(0, 0);
         println!("shift_iref_ele_16bytes(0, 0) = {}", res);
@@ -1272,7 +1275,7 @@ fn test_get_elem_iref_array_ele_9bytes() {
 
     unsafe {
         let get_elem_iref_array_ele_9bytes: libloading::Symbol<
-            unsafe extern "C" fn(u64, u64) -> u64,
+            unsafe extern "C" fn(u64, u64) -> u64
         > = lib.get(b"get_elem_iref_array_ele_9bytes").unwrap();
 
         let res = get_elem_iref_array_ele_9bytes(0, 0);

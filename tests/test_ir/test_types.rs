@@ -270,6 +270,6 @@ fn test_is_native_safe() {
     assert_eq!(types[13].is_native_safe(), false);
     assert_eq!(types[14].is_native_safe(), true);
     assert_eq!(types[15].is_native_safe(), false); // funcref is not native safe
-    // and not traced either
+                                                   // and not traced either
     assert_eq!(types[16].is_native_safe(), true);
 }

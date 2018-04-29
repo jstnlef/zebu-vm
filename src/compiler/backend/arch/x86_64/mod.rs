@@ -94,28 +94,24 @@ macro_rules! GPR_ALIAS {
 
 /// a macro to declare a general purpose register
 macro_rules! GPR {
-    ($id:expr, $name: expr, $ty: ident) => {
-        {
-            P(Value {
-                hdr: MuEntityHeader::named($id, Arc::new($name.to_string())),
-                ty: $ty.clone(),
-                v: Value_::SSAVar($id)
-            })
-        }
-    };
+    ($id: expr, $name: expr, $ty: ident) => {{
+        P(Value {
+            hdr: MuEntityHeader::named($id, Arc::new($name.to_string())),
+            ty: $ty.clone(),
+            v: Value_::SSAVar($id)
+        })
+    }};
 }
 
 /// a macro to declare a floating point register
 macro_rules! FPR {
-    ($id:expr, $name: expr) => {
-        {
-            P(Value {
-                hdr: MuEntityHeader::named($id, Arc::new($name.to_string())),
-                ty: DOUBLE_TYPE.clone(),
-                v: Value_::SSAVar($id)
-            })
-        }
-    };
+    ($id: expr, $name: expr) => {{
+        P(Value {
+            hdr: MuEntityHeader::named($id, Arc::new($name.to_string())),
+            ty: DOUBLE_TYPE.clone(),
+            v: Value_::SSAVar($id)
+        })
+    }};
 }
 
 // declare all general purpose registers for x86_64
@@ -218,7 +214,7 @@ pub fn is_aliased(id1: MuID, id2: MuID) -> bool {
         macro_rules! is_match {
             ($a1: expr, $a2: expr; $b: expr) => {
                 $a1 == $b.id() || $a2 == $b.id()
-            }
+            };
         };
 
         if is_match!(id1, id2; AH) {
@@ -619,14 +615,12 @@ pub fn is_valid_x86_imm(op: &P<Value>) -> bool {
     if let Some(int_width) = op.ty.get_int_length() {
         match int_width {
             1...32 => op.is_int_const(),
-            64 => {
-                match op.v {
-                    Value_::Constant(Constant::Int(val)) => {
-                        val as i64 >= i32::MIN as i64 && val as i64 <= i32::MAX as i64
-                    }
-                    _ => false
+            64 => match op.v {
+                Value_::Constant(Constant::Int(val)) => {
+                    val as i64 >= i32::MIN as i64 && val as i64 <= i32::MAX as i64
                 }
-            }
+                _ => false
+            },
             128 => false,
             _ => unimplemented!()
         }
@@ -648,16 +642,16 @@ pub fn estimate_insts_for_ir(inst: &Instruction) -> usize {
         CmpOp(_, _, _) => 1,
         ConvOp { .. } => 0,
 
-        CommonInst_Tr64IsFp(_) |
-        CommonInst_Tr64IsInt(_) |
-        CommonInst_Tr64IsRef(_) |
-        CommonInst_Tr64FromFp(_) |
-        CommonInst_Tr64FromInt(_) |
-        CommonInst_Tr64FromRef(_, _) |
-        CommonInst_Tr64ToFp(_) |
-        CommonInst_Tr64ToInt(_) |
-        CommonInst_Tr64ToRef(_) |
-        CommonInst_Tr64ToTag(_) => 3,
+        CommonInst_Tr64IsFp(_)
+        | CommonInst_Tr64IsInt(_)
+        | CommonInst_Tr64IsRef(_)
+        | CommonInst_Tr64FromFp(_)
+        | CommonInst_Tr64FromInt(_)
+        | CommonInst_Tr64FromRef(_, _)
+        | CommonInst_Tr64ToFp(_)
+        | CommonInst_Tr64ToInt(_)
+        | CommonInst_Tr64ToRef(_)
+        | CommonInst_Tr64ToTag(_) => 3,
 
         // control flow
         Branch1(_) => 1,
@@ -681,11 +675,11 @@ pub fn estimate_insts_for_ir(inst: &Instruction) -> usize {
         Fence(_) => 1,
 
         // memory addressing
-        GetIRef(_) |
-        GetFieldIRef { .. } |
-        GetElementIRef { .. } |
-        ShiftIRef { .. } |
-        GetVarPartIRef { .. } => 0,
+        GetIRef(_)
+        | GetFieldIRef { .. }
+        | GetElementIRef { .. }
+        | ShiftIRef { .. }
+        | GetVarPartIRef { .. } => 0,
 
         // runtime call
         New(_) | NewHybrid(_, _) => 10,

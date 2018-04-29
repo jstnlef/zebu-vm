@@ -101,19 +101,24 @@ macro_rules! typedef {
 }
 
 macro_rules! constdef {
-    (($vm: expr) <$ty: ident> $name: ident = $val: expr) => {
-        let $name = $vm.declare_const(MuEntityHeader::named($vm.next_id(), Mu(stringify!($name))),
-                                      $ty.clone(), $val);
+    (($vm: expr) < $ty: ident > $name: ident = $val: expr) => {
+        let $name = $vm.declare_const(
+            MuEntityHeader::named($vm.next_id(), Mu(stringify!($name))),
+            $ty.clone(),
+            $val
+        );
         $vm.set_name($name.as_entity());
-    }
+    };
 }
 
 macro_rules! globaldef {
-    (($vm: expr) <$ty: ident> $name: ident) => {
-        let $name = $vm.declare_global(MuEntityHeader::named($vm.next_id(), Mu(stringify!($name))),
-                                       $ty.clone());
+    (($vm: expr) < $ty: ident > $name: ident) => {
+        let $name = $vm.declare_global(
+            MuEntityHeader::named($vm.next_id(), Mu(stringify!($name))),
+            $ty.clone()
+        );
         $vm.set_name($name.as_entity());
-    }
+    };
 }
 
 macro_rules! funcsig {
@@ -126,22 +131,26 @@ macro_rules! funcsig {
 }
 
 macro_rules! funcdecl {
-    (($vm: expr) <$sig: ident> $name: ident) => {
-        let func = MuFunction::new(MuEntityHeader::named($vm.next_id(), Mu(stringify!($name))),
-                                   $sig.clone());
+    (($vm: expr) < $sig: ident > $name: ident) => {
+        let func = MuFunction::new(
+            MuEntityHeader::named($vm.next_id(), Mu(stringify!($name))),
+            $sig.clone()
+        );
         $vm.set_name(func.as_entity());
         let $name = func.hdr.clone();
         $vm.declare_func(func);
-    }
+    };
 }
 
 macro_rules! funcdef {
-    (($vm: expr) <$sig: ident> $func: ident VERSION $version: ident) => {
-        let mut $version = MuFunctionVersion::new(MuEntityHeader::named($vm.next_id(),
-                                                                        Mu(stringify!($version))),
-                                                  $func.id(), $sig.clone());
+    (($vm: expr) < $sig: ident > $func: ident VERSION $version: ident) => {
+        let mut $version = MuFunctionVersion::new(
+            MuEntityHeader::named($vm.next_id(), Mu(stringify!($version))),
+            $func.id(),
+            $sig.clone()
+        );
         $vm.set_name($version.as_entity());
-    }
+    };
 }
 
 macro_rules! define_func_ver {
@@ -160,7 +169,7 @@ macro_rules! block {
     (($vm: expr, $fv: ident) $name: ident) => {
         let mut $name = Block::new(MuEntityHeader::named($vm.next_id(), Mu(stringify!($name))));
         $vm.set_name($name.as_entity());
-    }
+    };
 }
 
 macro_rules! define_block {
@@ -185,29 +194,31 @@ macro_rules! define_block {
 }
 
 macro_rules! ssa {
-    (($vm: expr, $fv: ident) <$ty: ident> $name: ident) => {
-        let $name = $fv.new_ssa(MuEntityHeader::named($vm.next_id(), Mu(stringify!($name))),
-                                                      $ty.clone());
+    (($vm: expr, $fv: ident) < $ty: ident > $name: ident) => {
+        let $name = $fv.new_ssa(
+            MuEntityHeader::named($vm.next_id(), Mu(stringify!($name))),
+            $ty.clone()
+        );
         $vm.set_name($name.as_entity());
-    }
+    };
 }
 
 macro_rules! machine_reg {
     (($vm: expr, $fv: ident) $name: ident = $mreg: expr) => {
         let $name = $fv.new_machine_reg($mreg.clone());
-    }
+    };
 }
 
 macro_rules! consta {
     (($vm: expr, $fv: ident) $name: ident = $c: ident) => {
         let $name = $fv.new_constant($c.clone());
-    }
+    };
 }
 
 macro_rules! global {
     (($vm: expr, $fv: ident) $name: ident = $g: ident) => {
         let $name = $fv.new_global($g.clone());
-    }
+    };
 }
 
 macro_rules! inst {
@@ -658,7 +669,6 @@ macro_rules! inst {
         });
     };
 }
-
 
 /**************************************
 This macro is used as follows:
@@ -1150,7 +1160,11 @@ macro_rules! build_and_run_test {
             let funcs = vm.funcs().read().unwrap();
             let func = funcs.get(&func_id).unwrap().read().unwrap();
             let func_vers = vm.func_vers().read().unwrap();
-            let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
+            let mut func_ver = func_vers
+                .get(&func.cur_ver.unwrap())
+                .unwrap()
+                .write()
+                .unwrap();
 
             compiler.compile(&mut func_ver);
         }
@@ -1162,7 +1176,11 @@ macro_rules! build_and_run_test {
             let funcs = vm.funcs().read().unwrap();
             let func = funcs.get(&func_id).unwrap().read().unwrap();
             let func_vers = vm.func_vers().read().unwrap();
-            let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
+            let mut func_ver = func_vers
+                .get(&func.cur_ver.unwrap())
+                .unwrap()
+                .write()
+                .unwrap();
 
             compiler.compile(&mut func_ver);
         }
@@ -1184,7 +1202,11 @@ macro_rules! build_and_run_test {
             let funcs = vm.funcs().read().unwrap();
             let func = funcs.get(&func_id).unwrap().read().unwrap();
             let func_vers = vm.func_vers().read().unwrap();
-            let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
+            let mut func_ver = func_vers
+                .get(&func.cur_ver.unwrap())
+                .unwrap()
+                .write()
+                .unwrap();
 
             compiler.compile(&mut func_ver);
         }
@@ -1196,7 +1218,11 @@ macro_rules! build_and_run_test {
             let funcs = vm.funcs().read().unwrap();
             let func = funcs.get(&func_id).unwrap().read().unwrap();
             let func_vers = vm.func_vers().read().unwrap();
-            let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
+            let mut func_ver = func_vers
+                .get(&func.cur_ver.unwrap())
+                .unwrap()
+                .write()
+                .unwrap();
 
             compiler.compile(&mut func_ver);
         }
@@ -1218,7 +1244,11 @@ macro_rules! build_and_run_test {
             let funcs = vm.funcs().read().unwrap();
             let func = funcs.get(&func_id).unwrap().read().unwrap();
             let func_vers = vm.func_vers().read().unwrap();
-            let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
+            let mut func_ver = func_vers
+                .get(&func.cur_ver.unwrap())
+                .unwrap()
+                .write()
+                .unwrap();
 
             compiler.compile(&mut func_ver);
         }
@@ -1230,7 +1260,11 @@ macro_rules! build_and_run_test {
             let funcs = vm.funcs().read().unwrap();
             let func = funcs.get(&func_id).unwrap().read().unwrap();
             let func_vers = vm.func_vers().read().unwrap();
-            let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
+            let mut func_ver = func_vers
+                .get(&func.cur_ver.unwrap())
+                .unwrap()
+                .write()
+                .unwrap();
 
             compiler.compile(&mut func_ver);
         }
@@ -1239,15 +1273,21 @@ macro_rules! build_and_run_test {
             let funcs = vm.funcs().read().unwrap();
             let func = funcs.get(&func_id).unwrap().read().unwrap();
             let func_vers = vm.func_vers().read().unwrap();
-            let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
+            let mut func_ver = func_vers
+                .get(&func.cur_ver.unwrap())
+                .unwrap()
+                .write()
+                .unwrap();
 
             compiler.compile(&mut func_ver);
         }
 
         backend::emit_context(&vm);
-        aot::run_test_2f(&vm, stringify!($test_name),
-                              stringify!($dep_name),
-                              stringify!($tester_name)
+        aot::run_test_2f(
+            &vm,
+            stringify!($test_name),
+            stringify!($dep_name),
+            stringify!($tester_name)
         );
     };
     ($test_name: ident AND $dep_name: ident, $tester_name: ident, $fnc_name: ident) => {
@@ -1262,7 +1302,11 @@ macro_rules! build_and_run_test {
             let funcs = vm.funcs().read().unwrap();
             let func = funcs.get(&func_id).unwrap().read().unwrap();
             let func_vers = vm.func_vers().read().unwrap();
-            let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
+            let mut func_ver = func_vers
+                .get(&func.cur_ver.unwrap())
+                .unwrap()
+                .write()
+                .unwrap();
 
             compiler.compile(&mut func_ver);
         }
@@ -1274,7 +1318,11 @@ macro_rules! build_and_run_test {
             let funcs = vm.funcs().read().unwrap();
             let func = funcs.get(&func_id).unwrap().read().unwrap();
             let func_vers = vm.func_vers().read().unwrap();
-            let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
+            let mut func_ver = func_vers
+                .get(&func.cur_ver.unwrap())
+                .unwrap()
+                .write()
+                .unwrap();
 
             compiler.compile(&mut func_ver);
         }
@@ -1284,15 +1332,21 @@ macro_rules! build_and_run_test {
             let funcs = vm.funcs().read().unwrap();
             let func = funcs.get(&func_id).unwrap().read().unwrap();
             let func_vers = vm.func_vers().read().unwrap();
-            let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
+            let mut func_ver = func_vers
+                .get(&func.cur_ver.unwrap())
+                .unwrap()
+                .write()
+                .unwrap();
 
             compiler.compile(&mut func_ver);
         }
 
         backend::emit_context(&vm);
-        aot::run_test_2f(&vm, stringify!($test_name),
-                              stringify!($dep_name),
-                              stringify!($tester_name)
+        aot::run_test_2f(
+            &vm,
+            stringify!($test_name),
+            stringify!($dep_name),
+            stringify!($tester_name)
         );
     };
 }

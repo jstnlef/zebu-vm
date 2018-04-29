@@ -279,7 +279,7 @@ mod addr_tests {
         let addr = Address(0);
         let aligned = addr.align_up(8);
 
-        assert!(addr == aligned);
+        assert_eq!(addr, aligned);
     }
 
     #[test]

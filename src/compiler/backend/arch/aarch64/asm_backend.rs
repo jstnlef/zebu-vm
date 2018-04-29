@@ -20,7 +20,7 @@ use utils::POINTER_SIZE;
 use compiler::backend::aarch64::*;
 use runtime::mm::*;
 
-use compiler::backend::{Reg, Mem};
+use compiler::backend::{Mem, Reg};
 use compiler::machine_code::MachineCode;
 use vm::VM;
 use runtime::ValueLocation;
@@ -185,7 +185,6 @@ impl ASMCode {
             inst.succs.clear();
             // 3. add the inst
             ret.code.push(inst);
-
 
             // insert code after this instruction
             if insert_after.contains_key(&i) {
@@ -1040,7 +1039,7 @@ pub struct ASMCodeGen {
 
 const REG_PLACEHOLDER_LEN: usize = 5;
 lazy_static! {
-    pub static ref REG_PLACEHOLDER : MuName = {
+    pub static ref REG_PLACEHOLDER: MuName = {
         let blank_spaces = [' ' as u8; REG_PLACEHOLDER_LEN];
 
         Arc::new(format!("{}", str::from_utf8(&blank_spaces).unwrap()))
@@ -1300,7 +1299,6 @@ impl ASMCodeGen {
             map
         };
 
-
         (result_str, uses)
     }
 
@@ -1420,12 +1418,10 @@ impl ASMCodeGen {
             Some(16) => "H",
             Some(32) => "W",
             Some(64) => "X",
-            _ => {
-                panic!(
-                    "op size: {} dose not support extension",
-                    src2.ty.get_int_length().unwrap()
-                )
-            }
+            _ => panic!(
+                "op size: {} dose not support extension",
+                src2.ty.get_int_length().unwrap()
+            )
         };
         let ext = ext_s.to_string() + "XT" + ext_p;
 
@@ -1439,7 +1435,6 @@ impl ASMCodeGen {
             dest
         );
 
-
         let (reg1, id1, loc1) = self.prepare_reg(dest, inst.len() + 1);
         let (reg2, id2, loc2) = self.prepare_reg(src1, inst.len() + 1 + reg1.len() + 1);
         let (reg3, id3, loc3) =
@@ -1450,7 +1445,6 @@ impl ASMCodeGen {
         } else {
             format!("{} {},{},{},{} #{}", inst, reg1, reg2, reg3, ext, shift)
         };
-
 
         self.add_asm_inst(
             asm,
@@ -1723,17 +1717,14 @@ impl ASMCodeGen {
             Some(16) => "H",
             Some(32) => "W",
             Some(64) => "X",
-            _ => {
-                panic!(
-                    "op size: {} dose not support extension",
-                    src2.ty.get_int_length().unwrap()
-                )
-            }
+            _ => panic!(
+                "op size: {} dose not support extension",
+                src2.ty.get_int_length().unwrap()
+            )
         };
         let ext = ext_s.to_string() + "XT" + ext_p;
 
         trace_emit!("\t{} {}, {} {} {}", inst, src1, src2, ext, shift);
-
 
         let (reg1, id1, loc1) = self.prepare_reg(src1, inst.len() + 1);
         let (reg2, id2, loc2) = self.prepare_reg(src2, inst.len() + 1 + reg1.len() + 1);
@@ -1911,24 +1902,23 @@ impl ASMCodeGen {
         is_callee_saved: bool
     ) {
         let op_len = primitive_byte_size(&dest.ty);
-        let inst = inst.to_string() +
-            if signed {
-                match op_len {
-                    1 => "SB",
-                    2 => "SH",
-                    4 => "SW",
-                    8 => "",
-                    _ => panic!("unexpected op size: {}", op_len)
-                }
-            } else {
-                match op_len {
-                    1 => "B",
-                    2 => "H",
-                    4 => "",
-                    8 => "",
-                    _ => panic!("unexpected op size: {}", op_len)
-                }
-            };
+        let inst = inst.to_string() + if signed {
+            match op_len {
+                1 => "SB",
+                2 => "SH",
+                4 => "SW",
+                8 => "",
+                _ => panic!("unexpected op size: {}", op_len)
+            }
+        } else {
+            match op_len {
+                1 => "B",
+                2 => "H",
+                4 => "",
+                8 => "",
+                _ => panic!("unexpected op size: {}", op_len)
+            }
+        };
 
         trace_emit!("\t{} {} -> {}", inst, src, dest);
 
@@ -1990,14 +1980,13 @@ impl ASMCodeGen {
         is_callee_saved: bool
     ) {
         let op_len = primitive_byte_size(&src.ty);
-        let inst = inst.to_string() +
-            match op_len {
-                1 => "B",
-                2 => "H",
-                4 => "",
-                8 => "",
-                _ => panic!("unexpected op size: {}", op_len)
-            };
+        let inst = inst.to_string() + match op_len {
+            1 => "B",
+            2 => "H",
+            4 => "",
+            8 => "",
+            _ => panic!("unexpected op size: {}", op_len)
+        };
 
         trace_emit!("\t{} {} -> {}", inst, src, dest);
 
@@ -2011,7 +2000,6 @@ impl ASMCodeGen {
         } else if uses.contains_key(&id1) {
             let locs = uses.get_mut(&id1).unwrap();
             vec_utils::add_unique(locs, loc1);
-
         } else {
             uses.insert(id1, vec![loc1]);
         }
@@ -2329,12 +2317,10 @@ impl CodeGenerator for ASMCodeGen {
             Some(ref mut block) => {
                 block.end_inst = line;
             }
-            None => {
-                panic!(
-                    "trying to end block {} which hasnt been started",
-                    block_name
-                )
-            }
+            None => panic!(
+                "trying to end block {} which hasnt been started",
+                block_name
+            )
         }
     }
 
@@ -2424,7 +2410,6 @@ impl CodeGenerator for ASMCodeGen {
         )
     }
 
-
     // TODO: What to do when src1/src2/stack are the same???
     fn emit_pop_pair(&mut self, dest1: &P<Value>, dest2: &P<Value>, stack: &P<Value>) {
         trace_emit!("\tpop_pair {} [+0,+8] -> {}, {}", stack, dest1, dest2);
@@ -2502,7 +2487,6 @@ impl CodeGenerator for ASMCodeGen {
         let asm = format!("BLR {}", reg1);
         self.internal_call(callsite, asm, pe, args, ret, Some((id1, loc1)), true)
     }
-
 
     fn emit_b(&mut self, dest_name: MuName) {
         trace_emit!("\tB {}", dest_name);
@@ -2633,7 +2617,6 @@ impl CodeGenerator for ASMCodeGen {
             false
         )
     }
-
 
     // Address calculation
     fn emit_adr(&mut self, dest: Reg, src: Mem) {
@@ -3420,7 +3403,6 @@ impl CodeGenerator for ASMCodeGen {
         )
     }
 
-
     // Exceptiuon instructions (NOTE: these will alter the PC)
     fn emit_brk(&mut self, val: u16) {
         self.internal_simple_imm("BRK", val as u64)
@@ -3463,13 +3445,11 @@ pub fn emit_code(fv: &mut MuFunctionVersion, vm: &VM) {
     file_path.push(func.name().to_string() + ".S");
     {
         let mut file = match File::create(file_path.as_path()) {
-            Err(why) => {
-                panic!(
-                    "couldn't create emission file {}: {}",
-                    file_path.to_str().unwrap(),
-                    why
-                )
-            }
+            Err(why) => panic!(
+                "couldn't create emission file {}: {}",
+                file_path.to_str().unwrap(),
+                why
+            ),
             Ok(file) => file
         };
 
@@ -3489,13 +3469,11 @@ pub fn emit_code(fv: &mut MuFunctionVersion, vm: &VM) {
         // write code
         let code = cf.mc.as_ref().unwrap().emit();
         match file.write_all(code.as_slice()) {
-            Err(why) => {
-                panic!(
-                    "couldn'd write to file {}: {}",
-                    file_path.to_str().unwrap(),
-                    why
-                )
-            }
+            Err(why) => panic!(
+                "couldn'd write to file {}: {}",
+                file_path.to_str().unwrap(),
+                why
+            ),
             Ok(_) => info!("emit code to {}", file_path.to_str().unwrap())
         }
     }
@@ -3507,42 +3485,34 @@ pub fn emit_code(fv: &mut MuFunctionVersion, vm: &VM) {
         demangled_path.push((*func.name()).clone() + ".demangled.S");
 
         let mut demangled_file = match File::create(demangled_path.as_path()) {
-            Err(why) => {
-                panic!(
-                    "couldn't create demangled emission file {}: {}",
-                    demangled_path.to_str().unwrap(),
-                    why
-                )
-            }
+            Err(why) => panic!(
+                "couldn't create demangled emission file {}: {}",
+                demangled_path.to_str().unwrap(),
+                why
+            ),
             Ok(file) => file
         };
         let mut mangled_file = match File::open(file_path.as_path()) {
-            Err(why) => {
-                panic!(
-                    "couldn't create demangled emission file {}: {}",
-                    demangled_path.to_str().unwrap(),
-                    why
-                )
-            }
+            Err(why) => panic!(
+                "couldn't create demangled emission file {}: {}",
+                demangled_path.to_str().unwrap(),
+                why
+            ),
             Ok(file) => file
         };
         let mut f = String::new();
         mangled_file.read_to_string(&mut f).unwrap();
         let d = demangle_text(&f);
         match demangled_file.write_all(d.as_bytes()) {
-            Err(why) => {
-                panic!(
-                    "couldn'd write to file {}: {}",
-                    demangled_path.to_str().unwrap(),
-                    why
-                )
-            }
-            Ok(_) => {
-                info!(
-                    "emit demangled code to {}",
-                    demangled_path.to_str().unwrap()
-                )
-            }
+            Err(why) => panic!(
+                "couldn'd write to file {}: {}",
+                demangled_path.to_str().unwrap(),
+                why
+            ),
+            Ok(_) => info!(
+                "emit demangled code to {}",
+                demangled_path.to_str().unwrap()
+            )
         }
     }
 }
@@ -3574,13 +3544,10 @@ fn write_const(f: &mut File, constant: P<Value>, loc: P<Value>) {
     // label
     let label = match loc.v {
         Value_::Memory(MemoryLocation::Symbolic { ref label, .. }) => label.clone(),
-        _ => {
-            panic!(
-                "expecing a symbolic memory location for constant {}, found {}",
-                constant,
-                loc
-            )
-        }
+        _ => panic!(
+            "expecing a symbolic memory location for constant {}, found {}",
+            constant, loc
+        )
     };
     writeln!(f, "{}:", mangle_name(label)).unwrap();
 
@@ -3623,15 +3590,12 @@ fn write_const_value(f: &mut File, constant: P<Value>) {
         }
         &Constant::NullRef => writeln!(f, ".xword 0").unwrap(),
         &Constant::ExternSym(ref name) => writeln!(f, ".xword {}", name).unwrap(),
-        &Constant::List(ref vals) => {
-            for val in vals {
-                write_const_value(f, val.clone())
-            }
-        }
+        &Constant::List(ref vals) => for val in vals {
+            write_const_value(f, val.clone())
+        },
         _ => unimplemented!()
     }
 }
-
 
 use std::collections::HashMap;
 
@@ -3652,13 +3616,11 @@ pub fn emit_context_with_reloc(
     file_path.push(AOT_EMIT_CONTEXT_FILE);
 
     let mut file = match File::create(file_path.as_path()) {
-        Err(why) => {
-            panic!(
-                "couldn't create context file {}: {}",
-                file_path.to_str().unwrap(),
-                why
-            )
-        }
+        Err(why) => panic!(
+            "couldn't create context file {}: {}",
+            file_path.to_str().unwrap(),
+            why
+        ),
         Ok(file) => file
     };
 
@@ -3757,13 +3719,11 @@ pub fn emit_context_with_reloc(
                         // get the relocatable label
                         let label = match relocatable_refs.get(&load_ref) {
                             Some(label) => label,
-                            None => {
-                                panic!(
-                                    "cannot find label for address {}, it is not dumped by GC \
-                                     (why GC didn't trace to it?)",
-                                    load_ref
-                                )
-                            }
+                            None => panic!(
+                                "cannot find label for address {}, it is not dumped by GC \
+                                 (why GC didn't trace to it?)",
+                                load_ref
+                            )
                         };
                         file.write_fmt(format_args!("\t.xword {}\n", label.clone()))
                             .unwrap();
@@ -4036,7 +3996,6 @@ fn ignore_zero_register(id: MuID, locs: Vec<ASMLocation>) -> LinkedHashMap<MuID,
         linked_hashmap!{id => locs}
     }
 }
-
 
 #[inline(always)]
 // Creates a hashmap from the given vector (ignoring the zero register)

@@ -116,8 +116,7 @@ impl PeepholeOptimization {
             if backend::is_aliased(src_machine_reg, dst_machine_reg) {
                 info!(
                     "move between {} and {} is redundant! removed",
-                    src_machine_reg,
-                    dst_machine_reg
+                    src_machine_reg, dst_machine_reg
                 );
                 // redundant, remove this move
                 cf.mc_mut().set_inst_nop(inst);
@@ -233,10 +232,7 @@ impl PeepholeOptimization {
 
             info!(
                 "inst {} chain jumps to {}, rewrite as branching to {} (successor: {})",
-                orig_inst,
-                final_dest,
-                final_dest,
-                first_inst
+                orig_inst, final_dest, final_dest, first_inst
             );
             mc.replace_branch_dest(inst, old_first_inst, &final_dest, first_inst);
         }

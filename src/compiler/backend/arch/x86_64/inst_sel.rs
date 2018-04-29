@@ -763,38 +763,28 @@ impl<'a> InstructionSelection {
 
                                     // mov op -> result
                                     match to_ty_size {
-                                        1 => {
-                                            self.backend.emit_mov_r_r(&tmp_res, unsafe {
-                                                &tmp_op.as_type(UINT8_TYPE.clone())
-                                            })
-                                        }
-                                        2 => {
-                                            self.backend.emit_mov_r_r(&tmp_res, unsafe {
-                                                &tmp_op.as_type(UINT16_TYPE.clone())
-                                            })
-                                        }
-                                        4 => {
-                                            self.backend.emit_mov_r_r(&tmp_res, unsafe {
-                                                &tmp_op.as_type(UINT32_TYPE.clone())
-                                            })
-                                        }
-                                        8 => {
-                                            self.backend.emit_mov_r_r(&tmp_res, unsafe {
-                                                &tmp_op.as_type(UINT64_TYPE.clone())
-                                            })
-                                        }
+                                        1 => self.backend.emit_mov_r_r(&tmp_res, unsafe {
+                                            &tmp_op.as_type(UINT8_TYPE.clone())
+                                        }),
+                                        2 => self.backend.emit_mov_r_r(&tmp_res, unsafe {
+                                            &tmp_op.as_type(UINT16_TYPE.clone())
+                                        }),
+                                        4 => self.backend.emit_mov_r_r(&tmp_res, unsafe {
+                                            &tmp_op.as_type(UINT32_TYPE.clone())
+                                        }),
+                                        8 => self.backend.emit_mov_r_r(&tmp_res, unsafe {
+                                            &tmp_op.as_type(UINT64_TYPE.clone())
+                                        }),
                                         _ => panic!("unsupported int size: {}", to_ty_size)
                                     }
                                 } else if self.match_ireg_ex(op) {
                                     let (op_l, _) = self.emit_ireg_ex(op, f_content, f_context, vm);
 
                                     match to_ty_size {
-                                        1 | 2 => {
-                                            self.backend.emit_movz_r_r(
-                                                unsafe { &tmp_res.as_type(UINT32_TYPE.clone()) },
-                                                &op_l
-                                            )
-                                        }
+                                        1 | 2 => self.backend.emit_movz_r_r(
+                                            unsafe { &tmp_res.as_type(UINT32_TYPE.clone()) },
+                                            &op_l
+                                        ),
                                         4 | 8 => self.backend.emit_mov_r_r(&tmp_res, &op_l),
                                         _ => panic!("unsupported int size: {}", to_ty_size)
                                     }
@@ -945,12 +935,10 @@ impl<'a> InstructionSelection {
                                         MuType_::Float => {
                                             self.backend.emit_cvtsi2ss_f32_r(&tmp_res, &tmp_op)
                                         }
-                                        _ => {
-                                            panic!(
-                                                "expecting fp type as to type in SITOFP, found {}",
-                                                to_ty
-                                            )
-                                        }
+                                        _ => panic!(
+                                            "expecting fp type as to type in SITOFP, found {}",
+                                            to_ty
+                                        )
                                     }
                                 } else if self.match_ireg_ex(op) {
                                     unimplemented!()
@@ -971,32 +959,25 @@ impl<'a> InstructionSelection {
 
                                 let to_ty_size = vm.get_backend_type_size(to_ty.id());
                                 match to_ty_size {
-                                    1 | 2 | 4 | 8 => {
-                                        match from_ty.v {
-                                            MuType_::Double => {
-                                                self.backend.emit_cvtsd2si_r_f64(&tmp_res, &tmp_op)
-                                            }
-                                            MuType_::Float => {
-                                                self.backend.emit_cvtss2si_r_f32(&tmp_res, &tmp_op)
-                                            }
-                                            _ => {
-                                                panic!(
-                                                    "expected fp type as from type in FPTOSI, \
-                                                     found {}",
-                                                    from_ty
-                                                )
-                                            }
+                                    1 | 2 | 4 | 8 => match from_ty.v {
+                                        MuType_::Double => {
+                                            self.backend.emit_cvtsd2si_r_f64(&tmp_res, &tmp_op)
                                         }
-                                    }
-                                    16 => unimplemented!(),
-                                    _ => {
-                                        panic!(
-                                            "unexpected support integer type as to_type: {}",
-                                            to_ty
+                                        MuType_::Float => {
+                                            self.backend.emit_cvtss2si_r_f32(&tmp_res, &tmp_op)
+                                        }
+                                        _ => panic!(
+                                            "expected fp type as from type in FPTOSI, \
+                                             found {}",
+                                            from_ty
                                         )
-                                    }
+                                    },
+                                    16 => unimplemented!(),
+                                    _ => panic!(
+                                        "unexpected support integer type as to_type: {}",
+                                        to_ty
+                                    )
                                 }
-
                             }
                             // unsigned integer to floating point
                             op::ConvOp::UITOFP => {
@@ -1059,9 +1040,7 @@ impl<'a> InstructionSelection {
                                                 self.backend
                                                     .emit_cvtsi2sd_f64_r(&tmp_res, &tmp_op32);
                                             }
-                                            _ => {
-                                                panic!("not implemented int length {}", op_ty_size)
-                                            }
+                                            _ => panic!("not implemented int length {}", op_ty_size)
                                         }
                                     } else if to_ty.is_float() {
                                         match op_ty_size {
@@ -1140,10 +1119,10 @@ impl<'a> InstructionSelection {
                                                 self.backend.emit_mov_r_r(&tmp1, &tmp_op);
 
                                                 // cvtsi2ssq %tmp1(64) -> %tmp_res
-                                                self.backend.emit_cvtsi2ss_f32_r(
-                                                    &tmp_res,
-                                                    unsafe { &tmp1.as_type(UINT64_TYPE.clone()) }
-                                                );
+                                                self.backend
+                                                    .emit_cvtsi2ss_f32_r(&tmp_res, unsafe {
+                                                        &tmp1.as_type(UINT64_TYPE.clone())
+                                                    });
                                             }
                                             2 | 1 => {
                                                 let tmp_op32 =
@@ -1161,9 +1140,7 @@ impl<'a> InstructionSelection {
                                                 self.backend
                                                     .emit_cvtsi2ss_f32_r(&tmp_res, &tmp_op32);
                                             }
-                                            _ => {
-                                                panic!("not implemented int length {}", op_ty_size)
-                                            }
+                                            _ => panic!("not implemented int length {}", op_ty_size)
                                         }
                                     } else {
                                         panic!("expect double or float")
@@ -1345,8 +1322,7 @@ impl<'a> InstructionSelection {
                                     panic!(
                                         "FPTRUNC from {} to {} is not supported \
                                          (only support FPTRUNC from double to float)",
-                                        from_ty,
-                                        to_ty
+                                        from_ty, to_ty
                                     );
                                 }
                             }
@@ -1364,8 +1340,7 @@ impl<'a> InstructionSelection {
                                     panic!(
                                         "FPEXT from {} to {} is not supported\
                                          (only support FPEXT from float to double)",
-                                        from_ty,
-                                        to_ty
+                                        from_ty, to_ty
                                     );
                                 }
                             }
@@ -1413,8 +1388,7 @@ impl<'a> InstructionSelection {
                                     panic!(
                                         "expected BITCAST between int and fp,\
                                          found {} and {}",
-                                        from_ty,
-                                        to_ty
+                                        from_ty, to_ty
                                     )
                                 }
                             }
@@ -1431,11 +1405,11 @@ impl<'a> InstructionSelection {
 
                         // check allowed order for LOAD
                         match order {
-                            MemoryOrder::Relaxed |
-                            MemoryOrder::Consume |
-                            MemoryOrder::Acquire |
-                            MemoryOrder::SeqCst |
-                            MemoryOrder::NotAtomic => {}
+                            MemoryOrder::Relaxed
+                            | MemoryOrder::Consume
+                            | MemoryOrder::Acquire
+                            | MemoryOrder::SeqCst
+                            | MemoryOrder::NotAtomic => {}
                             _ => panic!("unsupported order {:?} for LOAD", order)
                         }
 
@@ -1491,9 +1465,9 @@ impl<'a> InstructionSelection {
                         // need mfence after the store? we need mfence for SeqCst store
                         let need_fence: bool = {
                             match order {
-                                MemoryOrder::Relaxed |
-                                MemoryOrder::Release |
-                                MemoryOrder::NotAtomic => false,
+                                MemoryOrder::Relaxed
+                                | MemoryOrder::Release
+                                | MemoryOrder::NotAtomic => false,
                                 MemoryOrder::SeqCst => true,
                                 _ => panic!("unsupported order {:?} for STORE", order)
                             }
@@ -1551,10 +1525,10 @@ impl<'a> InstructionSelection {
 
                         // check order
                         match order {
-                            MemoryOrder::Consume |
-                            MemoryOrder::Acquire |
-                            MemoryOrder::Release |
-                            MemoryOrder::AcqRel => {
+                            MemoryOrder::Consume
+                            | MemoryOrder::Acquire
+                            | MemoryOrder::Release
+                            | MemoryOrder::AcqRel => {
                                 // ignore
                             }
                             MemoryOrder::SeqCst => {
@@ -1565,11 +1539,11 @@ impl<'a> InstructionSelection {
                     }
 
                     // memory insts: calculate the address, then lea
-                    Instruction_::GetIRef(_) |
-                    Instruction_::GetFieldIRef { .. } |
-                    Instruction_::GetVarPartIRef { .. } |
-                    Instruction_::ShiftIRef { .. } |
-                    Instruction_::GetElementIRef { .. } => {
+                    Instruction_::GetIRef(_)
+                    | Instruction_::GetFieldIRef { .. }
+                    | Instruction_::GetVarPartIRef { .. }
+                    | Instruction_::ShiftIRef { .. }
+                    | Instruction_::GetElementIRef { .. } => {
                         // if we reach here, it means we want to store the address in a variable
                         trace!("instsel on GET FIELD/VARPART/ELEM IREF, SHIFTIREF");
 
@@ -1927,7 +1901,7 @@ impl<'a> InstructionSelection {
                             {
                                 use compiler::backend::x86_64::callconv::swapstack;
                                 use compiler::backend::x86_64::callconv::CallConvResult;
-                                use compiler::backend::x86_64::{ARGUMENT_GPRS, ARGUMENT_FPRS};
+                                use compiler::backend::x86_64::{ARGUMENT_FPRS, ARGUMENT_GPRS};
 
                                 let arg_values =
                                     self.process_arguments(&args, ops, f_content, f_context, vm);
@@ -2381,11 +2355,14 @@ impl<'a> InstructionSelection {
             };
 
             match op {
-                op::BinOp::Add | op::BinOp::And | op::BinOp::Or | op::BinOp::Xor |
-                op::BinOp::Mul => {
-                    if self.match_iconst_zero(node_op1) || self.match_iconst_one(node_op1) ||
-                        self.match_iimm(node_op1) ||
-                        self.match_mem(node_op1)
+                op::BinOp::Add
+                | op::BinOp::And
+                | op::BinOp::Or
+                | op::BinOp::Xor
+                | op::BinOp::Mul => {
+                    if self.match_iconst_zero(node_op1) || self.match_iconst_one(node_op1)
+                        || self.match_iimm(node_op1)
+                        || self.match_mem(node_op1)
                     {
                         swap_operands();
                     }
@@ -3264,7 +3241,6 @@ impl<'a> InstructionSelection {
                         }
                         _ => panic!("expect double or float")
                     }
-
                 } else if self.match_fpreg(op1) && self.match_fpreg(op2) {
                     trace!("emit add-fpreg-fpreg");
 
@@ -4058,12 +4034,10 @@ impl<'a> InstructionSelection {
 
         let return_vals: Vec<P<Value>> = match rets {
             &Some(ref rets) => rets.clone(),
-            &None => {
-                sig.ret_tys
-                    .iter()
-                    .map(|ty| self.make_temporary(f_context, ty.clone(), vm))
-                    .collect()
-            }
+            &None => sig.ret_tys
+                .iter()
+                .map(|ty| self.make_temporary(f_context, ty.clone(), vm))
+                .collect()
         };
 
         let (_, stack_locs) = {
@@ -4303,13 +4277,11 @@ impl<'a> InstructionSelection {
                                 vm
                             );
                         }
-                        _ => {
-                            panic!(
-                                "expect a ufuncptr to be either address constant, \
-                                 or symbol constant, we got {}",
-                                pv
-                            )
-                        }
+                        _ => panic!(
+                            "expect a ufuncptr to be either address constant, \
+                             or symbol constant, we got {}",
+                            pv
+                        )
                     }
                 }
                 _ => {
@@ -4427,8 +4399,11 @@ impl<'a> InstructionSelection {
             let ref exn_dest = resumption.as_ref().unwrap().exn_dest;
             let target_block_id = exn_dest.target.id();
 
-            self.current_callsites
-                .push_back((callsite.to_relocatable(), target_block_id, stack_arg_size));
+            self.current_callsites.push_back((
+                callsite.to_relocatable(),
+                target_block_id,
+                stack_arg_size
+            ));
 
             // insert an intermediate block to branch to normal
             // the branch is inserted later (because we need to deal with postcall convention)
@@ -4949,12 +4924,10 @@ impl<'a> InstructionSelection {
     /// matches a comparison result pattern
     fn match_cmp_res(&mut self, op: &TreeNode) -> bool {
         match op.v {
-            TreeNode_::Instruction(ref inst) => {
-                match inst.v {
-                    Instruction_::CmpOp(_, _, _) => true,
-                    _ => false
-                }
-            }
+            TreeNode_::Instruction(ref inst) => match inst.v {
+                Instruction_::CmpOp(_, _, _) => true,
+                _ => false
+            },
             TreeNode_::Value(_) => false
         }
     }
@@ -5123,12 +5096,12 @@ impl<'a> InstructionSelection {
                             let reg_op2 = self.emit_fpreg(op2, f_content, f_context, vm);
 
                             match op {
-                                op::CmpOp::FOEQ |
-                                op::CmpOp::FOGT |
-                                op::CmpOp::FOGE |
-                                op::CmpOp::FOLT |
-                                op::CmpOp::FOLE |
-                                op::CmpOp::FONE => {
+                                op::CmpOp::FOEQ
+                                | op::CmpOp::FOGT
+                                | op::CmpOp::FOGE
+                                | op::CmpOp::FOLT
+                                | op::CmpOp::FOLE
+                                | op::CmpOp::FONE => {
                                     match reg_op1.ty.v {
                                         MuType_::Double => {
                                             self.backend.emit_comisd_f64_f64(&reg_op2, &reg_op1)
@@ -5141,12 +5114,12 @@ impl<'a> InstructionSelection {
 
                                     op
                                 }
-                                op::CmpOp::FUEQ |
-                                op::CmpOp::FUGT |
-                                op::CmpOp::FUGE |
-                                op::CmpOp::FULT |
-                                op::CmpOp::FULE |
-                                op::CmpOp::FUNE => {
+                                op::CmpOp::FUEQ
+                                | op::CmpOp::FUGT
+                                | op::CmpOp::FUGE
+                                | op::CmpOp::FULT
+                                | op::CmpOp::FULE
+                                | op::CmpOp::FUNE => {
                                     match reg_op1.ty.v {
                                         MuType_::Double => {
                                             self.backend.emit_ucomisd_f64_f64(&reg_op2, &reg_op1)
@@ -5365,22 +5338,20 @@ impl<'a> InstructionSelection {
                 // split the value
                 self.split_int128(&res, f_context, vm)
             }
-            TreeNode_::Value(ref pv) => {
-                match pv.v {
-                    Value_::SSAVar(_) => self.split_int128(pv, f_context, vm),
-                    Value_::Constant(Constant::IntEx(ref val)) => {
-                        assert!(val.len() == 2);
+            TreeNode_::Value(ref pv) => match pv.v {
+                Value_::SSAVar(_) => self.split_int128(pv, f_context, vm),
+                Value_::Constant(Constant::IntEx(ref val)) => {
+                    assert!(val.len() == 2);
 
-                        let tmp_l = self.make_temporary(f_context, UINT64_TYPE.clone(), vm);
-                        let tmp_h = self.make_temporary(f_context, UINT64_TYPE.clone(), vm);
+                    let tmp_l = self.make_temporary(f_context, UINT64_TYPE.clone(), vm);
+                    let tmp_h = self.make_temporary(f_context, UINT64_TYPE.clone(), vm);
 
-                        self.backend.emit_mov_r64_imm64(&tmp_l, val[0] as i64);
-                        self.backend.emit_mov_r64_imm64(&tmp_h, val[1] as i64);
+                    self.backend.emit_mov_r64_imm64(&tmp_l, val[0] as i64);
+                    self.backend.emit_mov_r64_imm64(&tmp_h, val[1] as i64);
 
-                        (tmp_l, tmp_h)
-                    }
-                    _ => panic!("value doesnt match with ireg-ex: {}", pv)
+                    (tmp_l, tmp_h)
                 }
+                _ => panic!("value doesnt match with ireg-ex: {}", pv)
             }
         }
     }
@@ -5412,23 +5383,21 @@ impl<'a> InstructionSelection {
                 // get the first result as P<Value>
                 self.get_result_value(op)
             }
-            TreeNode_::Value(ref pv) => {
-                match pv.v {
-                    Value_::SSAVar(_) => pv.clone(),
-                    Value_::Constant(Constant::Double(_)) => {
-                        let mem = self.get_mem_for_const(pv, vm);
-                        let tmp_fp = self.make_temporary(f_context, DOUBLE_TYPE.clone(), vm);
-                        self.backend.emit_movsd_f64_mem64(&tmp_fp, &mem);
-                        tmp_fp
-                    }
-                    Value_::Constant(Constant::Float(_)) => {
-                        let mem = self.get_mem_for_const(pv, vm);
-                        let tmp_fp = self.make_temporary(f_context, FLOAT_TYPE.clone(), vm);
-                        self.backend.emit_movss_f32_mem32(&tmp_fp, &mem);
-                        tmp_fp
-                    }
-                    _ => panic!("expected fpreg")
+            TreeNode_::Value(ref pv) => match pv.v {
+                Value_::SSAVar(_) => pv.clone(),
+                Value_::Constant(Constant::Double(_)) => {
+                    let mem = self.get_mem_for_const(pv, vm);
+                    let tmp_fp = self.make_temporary(f_context, DOUBLE_TYPE.clone(), vm);
+                    self.backend.emit_movsd_f64_mem64(&tmp_fp, &mem);
+                    tmp_fp
                 }
+                Value_::Constant(Constant::Float(_)) => {
+                    let mem = self.get_mem_for_const(pv, vm);
+                    let tmp_fp = self.make_temporary(f_context, FLOAT_TYPE.clone(), vm);
+                    self.backend.emit_movss_f32_mem32(&tmp_fp, &mem);
+                    tmp_fp
+                }
+                _ => panic!("expected fpreg")
             }
         }
     }
@@ -5504,13 +5473,11 @@ impl<'a> InstructionSelection {
     /// matches a floatingpoint zero
     fn match_fconst_zero(&mut self, op: &TreeNode) -> bool {
         match op.v {
-            TreeNode_::Value(ref pv) if pv.is_fp_const() => {
-                match pv.v {
-                    Value_::Constant(Constant::Float(val)) => val == 0f32,
-                    Value_::Constant(Constant::Double(val)) => val == 0f64,
-                    _ => false
-                }
-            }
+            TreeNode_::Value(ref pv) if pv.is_fp_const() => match pv.v {
+                Value_::Constant(Constant::Float(val)) => val == 0f32,
+                Value_::Constant(Constant::Double(val)) => val == 0f64,
+                _ => false
+            },
             _ => false
         }
     }
@@ -5674,13 +5641,11 @@ impl<'a> InstructionSelection {
                             let ref iref_or_uptr_ty = base.as_value().ty;
                             match iref_or_uptr_ty.v {
                                 MuType_::IRef(ref ty) | MuType_::UPtr(ref ty) => ty.clone(),
-                                _ => {
-                                    panic!(
-                                        "expected the base for GetFieldIRef has a type of iref \
-                                         or uptr, found type: {}",
-                                        iref_or_uptr_ty
-                                    )
-                                }
+                                _ => panic!(
+                                    "expected the base for GetFieldIRef has a type of iref \
+                                     or uptr, found type: {}",
+                                    iref_or_uptr_ty
+                                )
                             }
                         };
                         let field_offset: i32 = self.get_field_offset(&struct_ty, index, vm);
@@ -5707,20 +5672,18 @@ impl<'a> InstructionSelection {
                         base,
                         offset: index,
                         ..
-                    } |
-                    Instruction_::GetElementIRef { base, index, .. } => {
+                    }
+                    | Instruction_::GetElementIRef { base, index, .. } => {
                         let ref base = ops[base];
                         let ref index = ops[index];
 
                         let ref iref_ty = base.as_value().ty;
                         let base_ty = match iref_ty.get_referent_ty() {
                             Some(ty) => ty,
-                            None => {
-                                panic!(
-                                    "expected op in ShiftIRef of type IRef, found type: {}",
-                                    iref_ty
-                                )
-                            }
+                            None => panic!(
+                                "expected op in ShiftIRef of type IRef, found type: {}",
+                                iref_ty
+                            )
                         };
                         let ele_ty_size = {
                             let backend_ty = vm.get_backend_type_info(base_ty.id());
@@ -5793,13 +5756,13 @@ impl<'a> InstructionSelection {
                         operation: ConvOp::REFCAST,
                         operand,
                         ..
-                    } |
-                    Instruction_::ConvOp {
+                    }
+                    | Instruction_::ConvOp {
                         operation: ConvOp::PTRCAST,
                         operand,
                         ..
-                    } |
-                    Instruction_::Move(operand) => {
+                    }
+                    | Instruction_::Move(operand) => {
                         trace!("MEM from REF/PTRCAST/MOVE: {}", op);
                         let ref mem_op = inst.ops[operand];
                         self.emit_inst_addr_to_value_inner(mem_op, f_content, f_context, vm)
@@ -5817,31 +5780,29 @@ impl<'a> InstructionSelection {
                     }
                 }
             }
-            TreeNode_::Value(ref pv) => {
-                match pv.v {
-                    Value_::SSAVar(_) => {
-                        trace!("MEM from value/ssa: {}", op);
-                        MemoryLocation::Address {
-                            base: pv.clone(),
-                            offset: None,
-                            index: None,
-                            scale: None
-                        }
+            TreeNode_::Value(ref pv) => match pv.v {
+                Value_::SSAVar(_) => {
+                    trace!("MEM from value/ssa: {}", op);
+                    MemoryLocation::Address {
+                        base: pv.clone(),
+                        offset: None,
+                        index: None,
+                        scale: None
                     }
-                    Value_::Constant(_) => {
-                        error!("MEM from value/constant: {}", op);
-                        panic!("trying to get memory from constant");
-                    }
-                    Value_::Global(_) => {
-                        trace!("MEM from value/global: {}", op);
-                        self.make_memory_symbolic_global(op.name(), pv.ty.clone(), f_context, vm)
-                            .extract_memory_location()
-                            .unwrap()
-                    }
-                    Value_::Memory(ref mem) => {
-                        trace!("MEM from value/memory: {}", op);
-                        mem.clone()
-                    }
+                }
+                Value_::Constant(_) => {
+                    error!("MEM from value/constant: {}", op);
+                    panic!("trying to get memory from constant");
+                }
+                Value_::Global(_) => {
+                    trace!("MEM from value/global: {}", op);
+                    self.make_memory_symbolic_global(op.name(), pv.ty.clone(), f_context, vm)
+                        .extract_memory_location()
+                        .unwrap()
+                }
+                Value_::Memory(ref mem) => {
+                    trace!("MEM from value/memory: {}", op);
+                    mem.clone()
                 }
             }
         }
@@ -5928,12 +5889,10 @@ impl<'a> InstructionSelection {
     /// converts a constant function reference to its function ID
     fn node_funcref_const_to_id(&mut self, op: &TreeNode) -> MuID {
         match op.v {
-            TreeNode_::Value(ref pv) => {
-                match &pv.v {
-                    &Value_::Constant(Constant::FuncRef(ref hdr)) => hdr.id(),
-                    _ => panic!("expected a funcref const")
-                }
-            }
+            TreeNode_::Value(ref pv) => match &pv.v {
+                &Value_::Constant(Constant::FuncRef(ref hdr)) => hdr.id(),
+                _ => panic!("expected a funcref const")
+            },
             _ => panic!("expected a funcref const")
         }
     }
@@ -5941,18 +5900,14 @@ impl<'a> InstructionSelection {
     /// matches a memory location pattern
     fn match_mem(&mut self, op: &TreeNode) -> bool {
         match op.v {
-            TreeNode_::Value(ref pv) => {
-                match pv.v {
-                    Value_::Memory(_) => true,
-                    Value_::Global(_) => true,
-                    _ => false
-                }
-            }
-            TreeNode_::Instruction(ref inst) => {
-                match inst.v {
-                    Instruction_::Load { .. } => true,
-                    _ => false
-                }
+            TreeNode_::Value(ref pv) => match pv.v {
+                Value_::Memory(_) => true,
+                Value_::Global(_) => true,
+                _ => false
+            },
+            TreeNode_::Instruction(ref inst) => match inst.v {
+                Instruction_::Load { .. } => true,
+                _ => false
             }
         }
     }
@@ -5967,22 +5922,18 @@ impl<'a> InstructionSelection {
         vm: &VM
     ) -> P<Value> {
         match op.v {
-            TreeNode_::Value(ref pv) => {
-                match pv.v {
-                    Value_::Memory(_) => pv.clone(),
-                    Value_::Global(ref ty) => {
-                        self.make_memory_symbolic_global(op.name(), ty.clone(), f_context, vm)
-                    }
-                    _ => unimplemented!()
+            TreeNode_::Value(ref pv) => match pv.v {
+                Value_::Memory(_) => pv.clone(),
+                Value_::Global(ref ty) => {
+                    self.make_memory_symbolic_global(op.name(), ty.clone(), f_context, vm)
                 }
-            }
-            TreeNode_::Instruction(ref inst) => {
-                match inst.v {
-                    Instruction_::Load { mem_loc, .. } => {
-                        self.emit_node_addr_to_value(&inst.ops[mem_loc], f_content, f_context, vm)
-                    }
-                    _ => panic!("only Load instruction can match memory operand")
+                _ => unimplemented!()
+            },
+            TreeNode_::Instruction(ref inst) => match inst.v {
+                Instruction_::Load { mem_loc, .. } => {
+                    self.emit_node_addr_to_value(&inst.ops[mem_loc], f_content, f_context, vm)
                 }
+                _ => panic!("only Load instruction can match memory operand")
             }
         }
     }
@@ -6000,8 +5951,7 @@ impl<'a> InstructionSelection {
                         warn!(
                             "retrieving value from a node with more than one value: {}, \
                              use the first value: {}",
-                            node,
-                            value
+                            node, value
                         );
                     }
 
@@ -6234,8 +6184,7 @@ impl<'a> InstructionSelection {
             } else {
                 Arc::new(format!(
                     "{}:callsite_{}",
-                    self.current_fv_name,
-                    self.current_callsite_id
+                    self.current_fv_name, self.current_callsite_id
                 ))
             }
         };
@@ -6252,18 +6201,16 @@ impl<'a> InstructionSelection {
         } else {
             let const_value_loc = vm.allocate_const(val);
             let const_mem_val = match const_value_loc {
-                ValueLocation::Relocatable(_, ref name) => {
-                    P(Value {
-                        hdr: MuEntityHeader::unnamed(vm.next_id()),
-                        ty: ADDRESS_TYPE.clone(),
-                        v: Value_::Memory(MemoryLocation::Symbolic {
-                            base: Some(x86_64::RIP.clone()),
-                            label: name.clone(),
-                            is_global: false,
-                            is_native: false
-                        })
+                ValueLocation::Relocatable(_, ref name) => P(Value {
+                    hdr: MuEntityHeader::unnamed(vm.next_id()),
+                    ty: ADDRESS_TYPE.clone(),
+                    v: Value_::Memory(MemoryLocation::Symbolic {
+                        base: Some(x86_64::RIP.clone()),
+                        label: name.clone(),
+                        is_global: false,
+                        is_native: false
                     })
-                }
+                }),
                 _ => panic!("expecting relocatable location, found {}", const_value_loc)
             };
 
@@ -6482,12 +6429,10 @@ impl CompilerPass for InstructionSelection {
         // insert exception branch info
         let frame = match self.current_frame.take() {
             Some(frame) => frame,
-            None => {
-                panic!(
-                    "no current_frame for function {} that is being compiled",
-                    func_name
-                )
-            }
+            None => panic!(
+                "no current_frame for function {} that is being compiled",
+                func_name
+            )
         };
         for &(ref callsite, block_id, stack_arg_size) in self.current_callsites.iter() {
             let block_loc = if block_id == 0 {

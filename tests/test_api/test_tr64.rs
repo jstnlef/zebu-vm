@@ -160,8 +160,8 @@ fn test_encode_double() {
         assert!(
             transmute::<u64, f64>(
                 (vm.handle_tr64_from_fp(&double(transmute(0x7ff123456789abcdu64)))
-                     .v
-                     .as_tr64())
+                    .v
+                    .as_tr64())
             ).is_nan()
         );
     }

@@ -56,23 +56,21 @@ pub const CALLEE_SAVED_COUNT: usize = 18;
 pub const ARGUMENT_REG_COUNT: usize = 16;
 
 macro_rules! REGISTER {
-    ($id:expr, $name: expr, $ty: ident) => {
-        {
-            P(Value {
-                hdr: MuEntityHeader::named($id, Arc::new($name.to_string())),
-                ty: $ty.clone(),
-                v: Value_::SSAVar($id)
-            })
-        }
-    };
+    ($id: expr, $name: expr, $ty: ident) => {{
+        P(Value {
+            hdr: MuEntityHeader::named($id, Arc::new($name.to_string())),
+            ty: $ty.clone(),
+            v: Value_::SSAVar($id)
+        })
+    }};
 }
 
 macro_rules! GPR_ALIAS {
     ($alias: ident: ($id64: expr, $r64: ident) -> $r32: ident) => {
-        lazy_static!{
-            pub static ref $r64 : P<Value> = REGISTER!($id64,    stringify!($r64), UINT64_TYPE);
-            pub static ref $r32 : P<Value> = REGISTER!($id64 +1, stringify!($r32), UINT32_TYPE);
-            pub static ref $alias : [P<Value>; 2] = [$r64.clone(), $r32.clone()];
+        lazy_static! {
+            pub static ref $r64: P<Value> = REGISTER!($id64, stringify!($r64), UINT64_TYPE);
+            pub static ref $r32: P<Value> = REGISTER!($id64 + 1, stringify!($r32), UINT32_TYPE);
+            pub static ref $alias: [P<Value>; 2] = [$r64.clone(), $r32.clone()];
         }
     };
 }
@@ -81,19 +79,18 @@ macro_rules! GPR_ALIAS {
 macro_rules! ALIAS {
     ($src: ident -> $dest: ident) => {
         //pub use $src as $dest;
-        lazy_static!{
-            pub static ref $dest : P<Value> = $src.clone();
+        lazy_static! {
+            pub static ref $dest: P<Value> = $src.clone();
         }
     };
 }
 
-
 macro_rules! FPR_ALIAS {
     ($alias: ident: ($id64: expr, $r64: ident) -> $r32: ident) => {
-        lazy_static!{
-            pub static ref $r64 : P<Value> = REGISTER!($id64,    stringify!($r64), DOUBLE_TYPE);
-            pub static ref $r32 : P<Value> = REGISTER!($id64 +1, stringify!($r32), FLOAT_TYPE);
-            pub static ref $alias : [P<Value>; 2] = [$r64.clone(), $r32.clone()];
+        lazy_static! {
+            pub static ref $r64: P<Value> = REGISTER!($id64, stringify!($r64), DOUBLE_TYPE);
+            pub static ref $r32: P<Value> = REGISTER!($id64 + 1, stringify!($r32), FLOAT_TYPE);
+            pub static ref $alias: [P<Value>; 2] = [$r64.clone(), $r32.clone()];
         }
     };
 }
@@ -222,9 +219,7 @@ pub fn is_machine_reg(val: &P<Value>) -> bool {
         }
         _ => false
     }
-
 }
-
 
 // Returns a P<Value> to the register id
 pub fn get_register_from_id(id: MuID) -> P<Value> {
@@ -258,9 +253,9 @@ pub fn get_alias_for_length(id: MuID, length: usize) -> P<Value> {
 }
 
 pub fn is_aliased(id1: MuID, id2: MuID) -> bool {
-    return id1 == id2 ||
-        (id1 < MACHINE_ID_END && id2 < MACHINE_ID_END &&
-             get_color_for_precolored(id1) == get_color_for_precolored(id2));
+    return id1 == id2
+        || (id1 < MACHINE_ID_END && id2 < MACHINE_ID_END
+            && get_color_for_precolored(id1) == get_color_for_precolored(id2));
 }
 
 pub fn get_color_for_precolored(id: MuID) -> MuID {
@@ -285,12 +280,10 @@ pub fn check_op_len(ty: &P<MuType>) -> usize {
         Some(n) if n <= 32 => 32,
         Some(n) if n <= 64 => 64,
         Some(n) => panic!("unimplemented int size: {}", n),
-        None => {
-            match ty.v {
-                MuType_::Float => 32,
-                MuType_::Double => 64,
-                _ => panic!("unimplemented primitive type: {}", ty)
-            }
+        None => match ty.v {
+            MuType_::Float => 32,
+            MuType_::Double => 64,
+            _ => panic!("unimplemented primitive type: {}", ty)
         }
     }
 }
@@ -299,15 +292,13 @@ pub fn check_op_len(ty: &P<MuType>) -> usize {
 pub fn get_bit_size(ty: &P<MuType>, vm: &VM) -> usize {
     match ty.get_int_length() {
         Some(val) => val,
-        None => {
-            match ty.v {
-                MuType_::Float => 32,
-                MuType_::Double => 64,
-                MuType_::Vector(ref t, n) => get_bit_size(t, vm) * n,
-                MuType_::Array(ref t, n) => get_bit_size(t, vm) * n,
-                MuType_::Void => 0,
-                _ => vm.get_backend_type_size(ty.id()) * 8
-            }
+        None => match ty.v {
+            MuType_::Float => 32,
+            MuType_::Double => 64,
+            MuType_::Vector(ref t, n) => get_bit_size(t, vm) * n,
+            MuType_::Array(ref t, n) => get_bit_size(t, vm) * n,
+            MuType_::Void => 0,
+            _ => vm.get_backend_type_size(ty.id()) * 8
         }
     }
 }
@@ -321,13 +312,11 @@ pub fn get_type_alignment(ty: &P<MuType>, vm: &VM) -> usize {
 pub fn primitive_byte_size(ty: &P<MuType>) -> usize {
     match ty.get_int_length() {
         Some(val) => (align_up(val, 8) / 8).next_power_of_two(),
-        None => {
-            match ty.v {
-                MuType_::Float => 4,
-                MuType_::Double => 8,
-                MuType_::Void => 0,
-                _ => panic!("Not a primitive type")
-            }
+        None => match ty.v {
+            MuType_::Float => 4,
+            MuType_::Double => 8,
+            MuType_::Void => 0,
+            _ => panic!("Not a primitive type")
         }
     }
 }
@@ -466,7 +455,7 @@ FPR_ALIAS!(D30_ALIAS: (FPR_ID_START + 60, D30)  -> S30);
 FPR_ALIAS!(D31_ALIAS: (FPR_ID_START + 62, D31)  -> S31);
 
 lazy_static! {
-    pub static ref FPR_ALIAS_TABLE : LinkedHashMap<MuID, Vec<P<Value>>> = {
+    pub static ref FPR_ALIAS_TABLE: LinkedHashMap<MuID, Vec<P<Value>>> = {
         let mut ret = LinkedHashMap::new();
 
         ret.insert(D0.id(), D0_ALIAS.to_vec());
@@ -504,9 +493,7 @@ lazy_static! {
 
         ret
     };
-
-
-    pub static ref FPR_ALIAS_LOOKUP : HashMap<MuID, P<Value>> = {
+    pub static ref FPR_ALIAS_LOOKUP: HashMap<MuID, P<Value>> = {
         let mut ret = HashMap::new();
 
         for vec in FPR_ALIAS_TABLE.values() {
@@ -942,11 +929,11 @@ pub fn estimate_insts_for_ir(inst: &Instruction) -> usize {
         Fence(_) => 1,
 
         // memory addressing
-        GetIRef(_) |
-        GetFieldIRef { .. } |
-        GetElementIRef { .. } |
-        ShiftIRef { .. } |
-        GetVarPartIRef { .. } => 0,
+        GetIRef(_)
+        | GetFieldIRef { .. }
+        | GetElementIRef { .. }
+        | ShiftIRef { .. }
+        | GetVarPartIRef { .. } => 0,
 
         // runtime
         New(_) | NewHybrid(_, _) => 10,
@@ -968,7 +955,6 @@ pub fn estimate_insts_for_ir(inst: &Instruction) -> usize {
         _ => 1
     }
 }
-
 
 // Splits an integer immediate into four 16-bit segments (returns the least significant first)
 pub fn split_aarch64_imm_u64(val: u64) -> (u16, u16, u16, u16) {
@@ -1009,9 +995,11 @@ pub fn is_valid_f32_imm(val: f32) -> bool {
 
     let b = get_bit(uval as u64, 0x19);
 
-    get_bit(uval as u64, 0x1E) == !b &&
-        ((uval & (0b11111 << 0x19)) == if b { 0b11111 << 0x19 } else { 0 }) &&
-        ((uval & !(0b1111111111111 << 0x13)) == 0)
+    get_bit(uval as u64, 0x1E) == !b && ((uval & (0b11111 << 0x19)) == if b {
+        0b11111 << 0x19
+    } else {
+        0
+    }) && ((uval & !(0b1111111111111 << 0x13)) == 0)
 }
 
 // Reduces the given floating point constant to 8-bits
@@ -1028,10 +1016,11 @@ pub fn is_valid_f64_imm(val: f64) -> bool {
 
     let b = (uval & (1 << 0x36)) != 0;
 
-    ((uval & (1 << 0x3E)) != 0) == !b &&
-        ((uval & (0b11111111 << 0x36)) == if b { 0b11111111 << 0x36 } else { 0 }) &&
-        ((uval & !(0b1111111111111111 << 0x30)) == 0)
-
+    ((uval & (1 << 0x3E)) != 0) == !b && ((uval & (0b11111111 << 0x36)) == if b {
+        0b11111111 << 0x36
+    } else {
+        0
+    }) && ((uval & !(0b1111111111111111 << 0x30)) == 0)
 }
 
 // Returns the 'ith bit of x
@@ -1057,7 +1046,6 @@ pub fn replicate_logical_imm(val: u64, n: usize) -> u64 {
     }
     new_val
 }
-
 
 // 'val' is a valid logical immediate if the binary value of ROR(val, r)
 // matches the regular expression
@@ -1247,17 +1235,12 @@ fn hfa_length(t: &P<MuType>) -> usize {
                 }
                 _ => return 0
             }
-
-
         } // TODO: how do I extra the list of member-types from this??
-        MuType_::Array(ref base, n) if n <= 4 => {
-            match base.v {
-                MuType_::Float | MuType_::Double => n,
-                _ => 0
-            }
-        }
+        MuType_::Array(ref base, n) if n <= 4 => match base.v {
+            MuType_::Float | MuType_::Double => n,
+            _ => 0
+        },
         _ => 0
-
     }
 }
 
@@ -1331,24 +1314,20 @@ pub fn is_zero_register_id(id: MuID) -> bool {
 
 pub fn match_node_f32imm(op: &TreeNode) -> bool {
     match op.v {
-        TreeNode_::Value(ref pv) => {
-            match pv.v {
-                Value_::Constant(Constant::Float(_)) => true,
-                _ => false
-            }
-        }
+        TreeNode_::Value(ref pv) => match pv.v {
+            Value_::Constant(Constant::Float(_)) => true,
+            _ => false
+        },
         _ => false
     }
 }
 
 pub fn match_node_f64imm(op: &TreeNode) -> bool {
     match op.v {
-        TreeNode_::Value(ref pv) => {
-            match pv.v {
-                Value_::Constant(Constant::Double(_)) => true,
-                _ => false
-            }
-        }
+        TreeNode_::Value(ref pv) => match pv.v {
+            Value_::Constant(Constant::Double(_)) => true,
+            _ => false
+        },
         _ => false
     }
 }
@@ -1638,11 +1617,9 @@ fn emit_mov_f64(
             None => {
                 // Have to load a temporary GPR with the value first
                 let tmp_int = make_temporary(f_context, UINT64_TYPE.clone(), vm);
-                emit_mov_u64(
-                    backend,
-                    &tmp_int,
-                    unsafe { mem::transmute::<f64, u64>(val) }
-                );
+                emit_mov_u64(backend, &tmp_int, unsafe {
+                    mem::transmute::<f64, u64>(val)
+                });
 
                 // then move it to an FPR
                 backend.emit_fmov(&dest, &tmp_int);
@@ -1667,9 +1644,11 @@ fn emit_mov_f32(
         // Have to load a temporary GPR with the value first
         let tmp_int = make_temporary(f_context, UINT32_TYPE.clone(), vm);
 
-        emit_mov_u64(backend, &tmp_int, unsafe {
-            mem::transmute::<f32, u32>(val)
-        } as u64);
+        emit_mov_u64(
+            backend,
+            &tmp_int,
+            unsafe { mem::transmute::<f32, u32>(val) } as u64
+        );
         // then move it to an FPR
         backend.emit_fmov(&dest, &tmp_int);
     }
@@ -1698,17 +1677,16 @@ pub fn emit_mov_u64(backend: &mut CodeGenerator, dest: &P<Value>, val: u64) {
         //  MOVK(dest, v, n) will set dest = dest[63:16+n]:n:dest[(n-1):0];
 
         // How many halfowrds are all zeros
-        let n_zeros = ((unsigned_value & bits_ones(16) == 0) as u64) +
-            ((unsigned_value & (bits_ones(16) << 16) == 0) as u64) +
-            ((unsigned_value & (bits_ones(16) << 32) == 0) as u64) +
-            ((unsigned_value & (bits_ones(16) << 48) == 0) as u64);
+        let n_zeros = ((unsigned_value & bits_ones(16) == 0) as u64)
+            + ((unsigned_value & (bits_ones(16) << 16) == 0) as u64)
+            + ((unsigned_value & (bits_ones(16) << 32) == 0) as u64)
+            + ((unsigned_value & (bits_ones(16) << 48) == 0) as u64);
 
         // How many halfowrds are all ones
-        let n_ones = ((negative_value & bits_ones(16) == bits_ones(16)) as u64) +
-            ((negative_value & (bits_ones(16) << 16) == (bits_ones(16) << 16)) as u64) +
-            ((negative_value & (bits_ones(16) << 32) == (bits_ones(16) << 32)) as u64) +
-            ((negative_value & (bits_ones(16) << 48) == (bits_ones(16) << 48)) as u64);
-
+        let n_ones = ((negative_value & bits_ones(16) == bits_ones(16)) as u64)
+            + ((negative_value & (bits_ones(16) << 16) == (bits_ones(16) << 16)) as u64)
+            + ((negative_value & (bits_ones(16) << 32) == (bits_ones(16) << 32)) as u64)
+            + ((negative_value & (bits_ones(16) << 48) == (bits_ones(16) << 48)) as u64);
 
         let mut movzn = false; // whether a movz/movn has been emmited yet
         if n_ones > n_zeros {
@@ -2078,7 +2056,6 @@ pub fn emit_ireg_value(
             let mem = make_value_symbolic(pv.name(), true, &pv.ty, vm);
             emit_calculate_address(backend, &tmp, &mem, vm);
             tmp
-
         }
         Value_::Memory(ref mem) => {
             //make_value_from_memory(mem: MemoryLocation, ty: &P<MuType>, vm: &VM)
@@ -2086,7 +2063,6 @@ pub fn emit_ireg_value(
             let tmp = make_temporary(f_context, pv.ty.clone(), vm);
             emit_calculate_address(backend, &tmp, &mem, vm);
             tmp
-
         }
     }
 }
@@ -2649,8 +2625,8 @@ fn memory_location_shift_scale(
                             // temp = offset * scale
                             emit_mul_u64(backend, &temp, &offset, scale);
 
-                            if new_scale.is_power_of_two() &&
-                                is_valid_immediate_extension(log2(new_scale))
+                            if new_scale.is_power_of_two()
+                                && is_valid_immediate_extension(log2(new_scale))
                             {
                                 // temp = (offset * scale) + more_offset << log2(new_scale)
                                 backend.emit_add_ext(
@@ -2823,7 +2799,6 @@ fn emit_load(
     } else {
         unimplemented!();
     }
-
 }
 
 fn emit_store(
@@ -2874,7 +2849,6 @@ fn emit_store_base_offset(
     let mem = make_value_base_offset(base, offset, &src.ty, vm);
     emit_store(backend, &mem, src, f_context, vm);
 }
-
 
 fn is_int_reg(val: &P<Value>) -> bool {
     RegGroup::get_from_value(&val) == RegGroup::GPR && (val.is_reg() || val.is_const())
@@ -3045,7 +3019,6 @@ fn compute_argument_locations(
                         ));
                         nsaa += size;
                     }
-
                 } else if size == 16 {
                     ngrn = align_up(ngrn, 2); // align NGRN to the next even number
 

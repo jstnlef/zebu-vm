@@ -12,9 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-extern crate mu;
-extern crate log;
 extern crate libloading;
+extern crate log;
+extern crate mu;
 
 use test_ir::test_ir::global_access;
 use test_compiler::test_call::gen_ccall_exit;
@@ -96,8 +96,7 @@ fn test_set_global_by_api() {
 
         debug!(
             "write {:?} to location {:?}",
-            uint64_10_handle,
-            global_handle
+            uint64_10_handle, global_handle
         );
         vm.handle_store(MemoryOrder::Relaxed, &global_handle, &uint64_10_handle);
     }
@@ -185,7 +184,10 @@ fn test_get_global_in_dylib() {
 
         let uint64_10_handle = vm.handle_from_uint64(10, 64);
 
-        debug!("write {:?} to location {:?}", uint64_10_handle, global_handle);
+        debug!(
+            "write {:?} to location {:?}",
+            uint64_10_handle, global_handle
+        );
         vm.handle_store(MemoryOrder::Relaxed, &global_handle, &uint64_10_handle);
     }
 
@@ -733,7 +735,10 @@ fn test_persist_funcref() {
 
         let func_ret42_handle = vm.handle_from_func(func_ret42_id);
 
-        debug!("write {:?} to location {:?}", func_ret42_handle, global_handle);
+        debug!(
+            "write {:?} to location {:?}",
+            func_ret42_handle, global_handle
+        );
         vm.handle_store(MemoryOrder::Relaxed, &global_handle, &func_ret42_handle);
     }
 

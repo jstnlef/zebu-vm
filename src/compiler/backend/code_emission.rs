@@ -67,17 +67,14 @@ fn create_emit_file(name: String, vm: &VM) -> File {
     file_path.push(name);
 
     match File::create(file_path.as_path()) {
-        Err(why) => {
-            panic!(
-                "couldn't create emit file {}: {}",
-                file_path.to_str().unwrap(),
-                why
-            )
-        }
+        Err(why) => panic!(
+            "couldn't create emit file {}: {}",
+            file_path.to_str().unwrap(),
+            why
+        ),
         Ok(file) => file
     }
 }
-
 
 fn emit_mc_dot(func: &MuFunctionVersion, vm: &VM) {
     let func_name = func.name();

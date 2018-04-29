@@ -176,8 +176,8 @@ impl Inlining {
                 let inst_id = inst.id();
                 if call_edges.contains_key(&inst_id) {
                     let call_target = &call_edges.get(&inst_id).unwrap().0;
-                    if self.should_inline.contains_key(call_target) &&
-                        *self.should_inline.get(call_target).unwrap()
+                    if self.should_inline.contains_key(call_target)
+                        && *self.should_inline.get(call_target).unwrap()
                     {
                         trace!("inserting inlined function at {}", inst);
 
@@ -191,13 +191,11 @@ impl Inlining {
                         trace!("function being inlined is {}", inlined_func);
                         let inlined_fvid = match vm.get_cur_version_for_func(inlined_func) {
                             Some(fvid) => fvid,
-                            None => {
-                                panic!(
-                                    "cannot resolve current version of Func {}, \
-                                     which is supposed to be inlined",
-                                    inlined_func
-                                )
-                            }
+                            None => panic!(
+                                "cannot resolve current version of Func {}, \
+                                 which is supposed to be inlined",
+                                inlined_func
+                            )
                         };
                         let inlined_fvs_guard = vm.func_vers().read().unwrap();
                         let inlined_fv_lock = inlined_fvs_guard.get(&inlined_fvid).unwrap();
@@ -313,15 +311,16 @@ impl Inlining {
                                 // if normal_dest expects different number of arguments
                                 // other than the inlined function returns, we need
                                 // an intermediate block to pass extra arguments
-                                if resume.normal_dest.args.len() !=
-                                    inlined_fv_guard.sig.ret_tys.len()
+                                if resume.normal_dest.args.len()
+                                    != inlined_fv_guard.sig.ret_tys.len()
                                 {
                                     debug!("need an extra block for passing normal dest arguments");
                                     let int_block_name =
                                         Arc::new(format!("inline_{}_arg_pass", inst_id));
-                                    let mut intermediate_block = Block::new(
-                                        MuEntityHeader::named(vm.next_id(), int_block_name)
-                                    );
+                                    let mut intermediate_block = Block::new(MuEntityHeader::named(
+                                        vm.next_id(),
+                                        int_block_name
+                                    ));
 
                                     // branch to normal_dest with normal_dest arguments
                                     let normal_dest_args =
@@ -417,18 +416,14 @@ fn copy_inline_blocks(
         }
     }
 
-    let fix_dest = |dest: Destination| {
-        Destination {
-            target: (*block_map.get(&dest.target.id()).unwrap()).clone(),
-            args: dest.args
-        }
+    let fix_dest = |dest: Destination| Destination {
+        target: (*block_map.get(&dest.target.id()).unwrap()).clone(),
+        args: dest.args
     };
 
-    let fix_resume = |resume: ResumptionData| {
-        ResumptionData {
-            normal_dest: fix_dest(resume.normal_dest),
-            exn_dest: fix_dest(resume.exn_dest)
-        }
+    let fix_resume = |resume: ResumptionData| ResumptionData {
+        normal_dest: fix_dest(resume.normal_dest),
+        exn_dest: fix_dest(resume.exn_dest)
     };
 
     for old_block in callee.blocks.values() {
@@ -608,9 +603,9 @@ fn copy_inline_blocks(
                             trace!("rewrite to: {}", swapstack);
                             block_content.body.push(TreeNode::new_inst(swapstack));
                         }
-                        &Instruction_::Watchpoint { .. } |
-                        &Instruction_::WPBranch { .. } |
-                        &Instruction_::ExnInstruction { .. } => unimplemented!(),
+                        &Instruction_::Watchpoint { .. }
+                        | &Instruction_::WPBranch { .. }
+                        | &Instruction_::ExnInstruction { .. } => unimplemented!(),
 
                         _ => {
                             block_content.body.push(last_inst_clone);

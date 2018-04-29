@@ -42,65 +42,65 @@ fn is_suitable_child(inst: &Instruction) -> bool {
     use ast::inst::Instruction_::*;
 
     match inst.v {
-        Return(_) |
-        ThreadExit |
-        Throw(_) |
-        TailCall(_) |
-        Branch1(_) |
-        Branch2 { .. } |
-        Watchpoint { .. } |
-        WPBranch { .. } |
-        Call { .. } |
-        CCall { .. } |
-        SwapStackExc { .. } |
-        SwapStackKill { .. } |
-        Switch { .. } |
-        ExnInstruction { .. } |
-        PrintHex(_) |
-        SetRetval(_) |
-        KillStack(_) |
-        CurrentStack |
-        SwapStackExpr { .. } |
-        CommonInst_Tr64IsFp(_) |
-        CommonInst_Tr64IsInt(_) |
-        CommonInst_Tr64IsRef(_) |
-        CommonInst_Tr64FromFp(_) |
-        CommonInst_Tr64FromInt(_) |
-        CommonInst_Tr64FromRef(_, _) |
-        CommonInst_Tr64ToFp(_) |
-        CommonInst_Tr64ToInt(_) |
-        CommonInst_Tr64ToRef(_) |
-        CommonInst_Tr64ToTag(_) |
-        ExprCall { .. } |
-        ExprCCall { .. } |
-        New(_) |
-        AllocA(_) |
-        NewHybrid(_, _) |
-        AllocAHybrid(_, _) |
-        NewStack(_) |
-        NewThread { .. } |
-        NewFrameCursor(_) |
-        Select { .. } |
-        Fence(_) |
-        CommonInst_SetThreadLocal(_) |
-        CommonInst_Pin(_) |
-        CommonInst_Unpin(_) |
-        CommonInst_GetAddr(_) |
-        CmpXchg { .. } |
-        AtomicRMW { .. } |
-        Store { .. } |
-        GetVMThreadLocal => false,
+        Return(_)
+        | ThreadExit
+        | Throw(_)
+        | TailCall(_)
+        | Branch1(_)
+        | Branch2 { .. }
+        | Watchpoint { .. }
+        | WPBranch { .. }
+        | Call { .. }
+        | CCall { .. }
+        | SwapStackExc { .. }
+        | SwapStackKill { .. }
+        | Switch { .. }
+        | ExnInstruction { .. }
+        | PrintHex(_)
+        | SetRetval(_)
+        | KillStack(_)
+        | CurrentStack
+        | SwapStackExpr { .. }
+        | CommonInst_Tr64IsFp(_)
+        | CommonInst_Tr64IsInt(_)
+        | CommonInst_Tr64IsRef(_)
+        | CommonInst_Tr64FromFp(_)
+        | CommonInst_Tr64FromInt(_)
+        | CommonInst_Tr64FromRef(_, _)
+        | CommonInst_Tr64ToFp(_)
+        | CommonInst_Tr64ToInt(_)
+        | CommonInst_Tr64ToRef(_)
+        | CommonInst_Tr64ToTag(_)
+        | ExprCall { .. }
+        | ExprCCall { .. }
+        | New(_)
+        | AllocA(_)
+        | NewHybrid(_, _)
+        | AllocAHybrid(_, _)
+        | NewStack(_)
+        | NewThread { .. }
+        | NewFrameCursor(_)
+        | Select { .. }
+        | Fence(_)
+        | CommonInst_SetThreadLocal(_)
+        | CommonInst_Pin(_)
+        | CommonInst_Unpin(_)
+        | CommonInst_GetAddr(_)
+        | CmpXchg { .. }
+        | AtomicRMW { .. }
+        | Store { .. }
+        | GetVMThreadLocal => false,
 
         BinOp(_, _, _) | BinOpWithStatus(_, _, _, _) | CommonInst_GetThreadLocal | Move(_) => false,
 
-        CmpOp(_, _, _) |
-        ConvOp { .. } |
-        Load { .. } |
-        GetIRef(_) |
-        GetFieldIRef { .. } |
-        GetElementIRef { .. } |
-        ShiftIRef { .. } |
-        GetVarPartIRef { .. } => true
+        CmpOp(_, _, _)
+        | ConvOp { .. }
+        | Load { .. }
+        | GetIRef(_)
+        | GetFieldIRef { .. }
+        | GetElementIRef { .. }
+        | ShiftIRef { .. }
+        | GetVarPartIRef { .. } => true
     }
 }
 

@@ -161,8 +161,9 @@ fn compute_dominators(func: &CompiledFunction, cfg: &MachineCFG) -> LinkedMultiM
     dominators
 }
 
-fn compute_immediate_dominators(dominators: &LinkedMultiMap<MuName, MuName>)
-    -> LinkedHashMap<MuName, MuName> {
+fn compute_immediate_dominators(
+    dominators: &LinkedMultiMap<MuName, MuName>
+) -> LinkedHashMap<MuName, MuName> {
     let mut immediate_doms: LinkedHashMap<MuName, MuName> = LinkedHashMap::new();
 
     for (n, doms) in dominators.iter() {
@@ -325,8 +326,9 @@ struct MCMergedLoop {
     blocks: LinkedHashSet<MuName>
 }
 
-fn compute_merged_loop(loops: &LinkedRepeatableMultiMap<MuName, MCNaturalLoop>)
-    -> LinkedHashMap<MuName, MCMergedLoop> {
+fn compute_merged_loop(
+    loops: &LinkedRepeatableMultiMap<MuName, MCNaturalLoop>
+) -> LinkedHashMap<MuName, MCMergedLoop> {
     let mut merged_loops = LinkedHashMap::new();
     for (header, natural_loops) in loops.iter() {
         let mut merged_loop = MCMergedLoop {

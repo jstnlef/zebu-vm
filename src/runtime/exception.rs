@@ -68,7 +68,6 @@ pub extern "C" fn throw_exception_internal(exception_obj: Address, frame_cursor:
 
         print_backtrace(frame_cursor, compiled_callsite_table.deref());
         loop {
-
             // Lookup the table for the callsite
             trace!("Callsite: 0x{:x}", callsite);
             trace!("\tprevious_frame_pointer: 0x{:x}", previous_frame_pointer);
@@ -153,14 +152,13 @@ fn print_frame(cursor: Address) {
                 }
             });
         }
-
     }
 }
 
 /// This function may segfault or panic when it reaches the bottom of the stack
 //  TODO: Determine where the bottom is without segfaulting
 fn print_backtrace(base: Address, compiled_callsite_table: &HashMap<Address, CompiledCallsite>) {
-    if log::max_log_level() < log::LogLevelFilter::Debug {
+    if log::max_level() < log::LevelFilter::Debug {
         return;
     }
 
@@ -204,10 +202,7 @@ fn print_backtrace(base: Address, compiled_callsite_table: &HashMap<Address, Com
             let (func_name, func_start) = get_function_info(callsite);
             debug!(
                 "\tframe {:2}: 0x{:x} - {} at 0x{:x}",
-                frame_count,
-                func_start,
-                func_name,
-                callsite
+                frame_count, func_start, func_name, callsite
             );
             debug!("\tother native frames...");
             break;

@@ -103,8 +103,7 @@ impl MuIRBuilder {
         let b_ptr = self as *mut MuIRBuilder;
         debug!(
             "Deallocating MuIRBuilder {:?} and CMuIRBuilder {:?}...",
-            b_ptr,
-            c_struct
+            b_ptr, c_struct
         );
         unsafe {
             Box::from_raw(c_struct);
@@ -1540,7 +1539,6 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
         impl_ty
     }
 
-
     fn ensure_tagref64(&mut self) -> P<MuType> {
         if let Some(ref impl_ty) = self.built_tagref64 {
             return impl_ty.clone();
@@ -1710,24 +1708,36 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
     }
 
     fn ensure_ref(&mut self, ty_id: MuID) -> P<MuType> {
-        BundleLoader::ensure_type_generic(ty_id, "ref", &self.vm, &mut self.built_ref_of,
-                                          &mut self.built_types, |impl_ty| {
-            MuType_::Ref(impl_ty)
-        })
+        BundleLoader::ensure_type_generic(
+            ty_id,
+            "ref",
+            &self.vm,
+            &mut self.built_ref_of,
+            &mut self.built_types,
+            |impl_ty| MuType_::Ref(impl_ty)
+        )
     }
 
     fn ensure_iref(&mut self, ty_id: MuID) -> P<MuType> {
-        BundleLoader::ensure_type_generic(ty_id, "iref", &self.vm, &mut self.built_iref_of,
-                                          &mut self.built_types, |impl_ty| {
-            MuType_::IRef(impl_ty)
-        })
+        BundleLoader::ensure_type_generic(
+            ty_id,
+            "iref",
+            &self.vm,
+            &mut self.built_iref_of,
+            &mut self.built_types,
+            |impl_ty| MuType_::IRef(impl_ty)
+        )
     }
 
     fn ensure_uptr(&mut self, ty_id: MuID) -> P<MuType> {
-        BundleLoader::ensure_type_generic(ty_id, "uptr", &self.vm, &mut self.built_iref_of,
-                                          &mut self.built_types, |impl_ty| {
-            MuType_::UPtr(impl_ty)
-        })
+        BundleLoader::ensure_type_generic(
+            ty_id,
+            "uptr",
+            &self.vm,
+            &mut self.built_iref_of,
+            &mut self.built_types,
+            |impl_ty| MuType_::UPtr(impl_ty)
+        )
     }
 
     fn ensure_iref_or_uptr(&mut self, ty_id: MuID, is_ptr: bool) -> P<MuType> {
@@ -1800,36 +1810,36 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                     Some(inst) => {
                         match **inst {
                             // Instructions with a single result
-                            NodeInst::NodeCmp { ref result_id, .. } |
-                            NodeInst::NodeConv { ref result_id, .. } |
-                            NodeInst::NodeSelect { ref result_id, .. } |
-                            NodeInst::NodeExtractValue { ref result_id, .. } |
-                            NodeInst::NodeInsertValue { ref result_id, .. } |
-                            NodeInst::NodeExtractElement { ref result_id, .. } |
-                            NodeInst::NodeInsertElement { ref result_id, .. } |
-                            NodeInst::NodeShuffleVector { ref result_id, .. } |
-                            NodeInst::NodeNew { ref result_id, .. } |
-                            NodeInst::NodeNewHybrid { ref result_id, .. } |
-                            NodeInst::NodeAlloca { ref result_id, .. } |
-                            NodeInst::NodeAllocaHybrid { ref result_id, .. } |
-                            NodeInst::NodeGetIRef { ref result_id, .. } |
-                            NodeInst::NodeGetFieldIRef { ref result_id, .. } |
-                            NodeInst::NodeGetElemIRef { ref result_id, .. } |
-                            NodeInst::NodeShiftIRef { ref result_id, .. } |
-                            NodeInst::NodeGetVarPartIRef { ref result_id, .. } |
-                            NodeInst::NodeLoad { ref result_id, .. } |
-                            NodeInst::NodeAtomicRMW { ref result_id, .. } |
-                            NodeInst::NodeNewThread { ref result_id, .. } => {
+                            NodeInst::NodeCmp { ref result_id, .. }
+                            | NodeInst::NodeConv { ref result_id, .. }
+                            | NodeInst::NodeSelect { ref result_id, .. }
+                            | NodeInst::NodeExtractValue { ref result_id, .. }
+                            | NodeInst::NodeInsertValue { ref result_id, .. }
+                            | NodeInst::NodeExtractElement { ref result_id, .. }
+                            | NodeInst::NodeInsertElement { ref result_id, .. }
+                            | NodeInst::NodeShuffleVector { ref result_id, .. }
+                            | NodeInst::NodeNew { ref result_id, .. }
+                            | NodeInst::NodeNewHybrid { ref result_id, .. }
+                            | NodeInst::NodeAlloca { ref result_id, .. }
+                            | NodeInst::NodeAllocaHybrid { ref result_id, .. }
+                            | NodeInst::NodeGetIRef { ref result_id, .. }
+                            | NodeInst::NodeGetFieldIRef { ref result_id, .. }
+                            | NodeInst::NodeGetElemIRef { ref result_id, .. }
+                            | NodeInst::NodeShiftIRef { ref result_id, .. }
+                            | NodeInst::NodeGetVarPartIRef { ref result_id, .. }
+                            | NodeInst::NodeLoad { ref result_id, .. }
+                            | NodeInst::NodeAtomicRMW { ref result_id, .. }
+                            | NodeInst::NodeNewThread { ref result_id, .. } => {
                                 self.ensure_name(*result_id, Some(*bb_id))
                             }
 
                             // Instructions with a variable list of results
-                            NodeInst::NodeCall { ref result_ids, .. } |
-                            NodeInst::NodeTrap { ref result_ids, .. } |
-                            NodeInst::NodeWatchPoint { ref result_ids, .. } |
-                            NodeInst::NodeCCall { ref result_ids, .. } |
-                            NodeInst::NodeSwapStack { ref result_ids, .. } |
-                            NodeInst::NodeCommInst { ref result_ids, .. } => {
+                            NodeInst::NodeCall { ref result_ids, .. }
+                            | NodeInst::NodeTrap { ref result_ids, .. }
+                            | NodeInst::NodeWatchPoint { ref result_ids, .. }
+                            | NodeInst::NodeCCall { ref result_ids, .. }
+                            | NodeInst::NodeSwapStack { ref result_ids, .. }
+                            | NodeInst::NodeCommInst { ref result_ids, .. } => {
                                 for result_id in result_ids {
                                     self.ensure_name(*result_id, Some(*bb_id));
                                 }
@@ -2049,8 +2059,8 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                     .collect::<Vec<_>>();
 
                 assert_ir!(
-                    fieldtys_impl.len() >= 1 &&
-                        fieldtys_impl.iter().all(|x| !x.is_hybrid() && !x.is_void())
+                    fieldtys_impl.len() >= 1
+                        && fieldtys_impl.iter().all(|x| !x.is_hybrid() && !x.is_void())
                 );
                 MuType_::mustruct_put(tag, fieldtys_impl);
                 trace!(
@@ -2154,8 +2164,8 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                 assert_ir!(t.is_int() || t.is_ptr());
                 assert_ir!(value.len() * 64 == align_up(t.get_int_length().unwrap(), 64));
                 assert_ir!(
-                    *value.last().unwrap() <=
-                        bits_ones(t.get_int_length().unwrap() - (value.len() - 1) * 64)
+                    *value.last().unwrap()
+                        <= bits_ones(t.get_int_length().unwrap() - (value.len() - 1) * 64)
                 );
 
                 (c, t)
@@ -2272,7 +2282,6 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
         }
     }
 
-
     fn build_funcver(&mut self, id: MuID) {
         let fv = self.b.bundle.funcvers.get(&id).unwrap();
 
@@ -2296,9 +2305,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
 
         let a = blocks
             .iter()
-            .map(|(bbid, block)| {
-                (*bbid, self.build_block_content(&mut fcb, *bbid, &blocks))
-            })
+            .map(|(bbid, block)| (*bbid, self.build_block_content(&mut fcb, *bbid, &blocks)))
             .collect::<Vec<_>>();
         for (bbi, body) in a {
             blocks[&bbi].content.as_mut().unwrap().body = body;
@@ -2306,8 +2313,8 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
 
         assert_ir!({
             let c = blocks[&entry_id].content.as_ref().unwrap();
-            c.args.len() == impl_sig.arg_tys.len() &&
-                c.args
+            c.args.len() == impl_sig.arg_tys.len()
+                && c.args
                     .iter()
                     .zip(&impl_sig.arg_tys)
                     .all(|(arg, t)| arg.ty == *t) && c.exn_arg.is_none()
@@ -3616,19 +3623,24 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
         let target_block = block.content.as_ref().unwrap();
 
         assert_ir!(target_block.args.len() == dest_clause.vars.len());
-        let dest_args = dest_clause.vars.iter().zip(&target_block.args).map(|(vid, arg)| {
-//            if let Some(ind) = inst_result_ids.iter().position(|rid| *rid == *vid) {
-//                DestArg::Freshbound(ind)
-//            } else {
-//                let my_index = ops.len();
-//                self.add_opnd(fcb, ops, *vid);
-//                DestArg::Normal(my_index)
-//            }
-            let my_index = ops.len();
-            let op = self.add_opnd(fcb, ops, *vid);
-            assert_ir!(op.ty() == arg.ty);
-            DestArg::Normal(my_index)
-        }).collect::<Vec<_>>();
+        let dest_args = dest_clause
+            .vars
+            .iter()
+            .zip(&target_block.args)
+            .map(|(vid, arg)| {
+                //            if let Some(ind) = inst_result_ids.iter().position(|rid| *rid == *vid) {
+                //                DestArg::Freshbound(ind)
+                //            } else {
+                //                let my_index = ops.len();
+                //                self.add_opnd(fcb, ops, *vid);
+                //                DestArg::Normal(my_index)
+                //            }
+                let my_index = ops.len();
+                let op = self.add_opnd(fcb, ops, *vid);
+                assert_ir!(op.ty() == arg.ty);
+                DestArg::Normal(my_index)
+            })
+            .collect::<Vec<_>>();
 
         let impl_dest = Destination {
             target: block.hdr.clone(),
@@ -3677,8 +3689,8 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                 let args_begin_index = ops.len();
                 let args = self.add_opnds(fcb, ops, vars);
                 assert_ir!(
-                    args.len() == tys.len() &&
-                        args.iter()
+                    args.len() == tys.len()
+                        && args.iter()
                             .zip(tys)
                             .all(|(arg, tid)| arg.ty() == self.get_built_type(*tid))
                 );
@@ -3709,8 +3721,8 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
         let args_begin_index = ops.len();
         let impl_args = self.add_opnds(fcb, ops, args);
         assert_ir!(
-            impl_args.len() == sig.arg_tys.len() &&
-                impl_args
+            impl_args.len() == sig.arg_tys.len()
+                && impl_args
                     .iter()
                     .zip(&sig.arg_tys)
                     .all(|(arg, t)| arg.ty() == *t)
@@ -3763,9 +3775,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
         let rvs = result_ids
             .iter()
             .zip(rettys)
-            .map(|(rvid, rty)| {
-                self.new_ssa(fcb, *rvid, rty.clone()).clone_value()
-            })
+            .map(|(rvid, rty)| self.new_ssa(fcb, *rvid, rty.clone()).clone_value())
             .collect::<Vec<_>>();
 
         if let Some(ecid) = exc_clause {
@@ -3838,9 +3848,8 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
         match opcode {
             CMU_CI_UVM_GET_THREADLOCAL => {
                 assert_ir!(
-                    tys.is_empty() && sigs.is_empty() && flags.is_empty() && args.is_empty() &&
-                        exc_clause.is_none() &&
-                        keepalives.is_none()
+                    tys.is_empty() && sigs.is_empty() && flags.is_empty() && args.is_empty()
+                        && exc_clause.is_none() && keepalives.is_none()
                 );
 
                 assert!(result_ids.len() == 1);
@@ -3857,9 +3866,8 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
             }
             CMU_CI_UVM_SET_THREADLOCAL => {
                 assert_ir!(
-                    tys.is_empty() && sigs.is_empty() && flags.is_empty() &&
-                        result_ids.is_empty() && exc_clause.is_none() &&
-                        keepalives.is_none()
+                    tys.is_empty() && sigs.is_empty() && flags.is_empty() && result_ids.is_empty()
+                        && exc_clause.is_none() && keepalives.is_none()
                 );
                 assert!(args.len() == 1);
 
@@ -3879,8 +3887,8 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
             }
             CMU_CI_UVM_NATIVE_PIN => {
                 assert_ir!(
-                    sigs.is_empty() && flags.is_empty() && exc_clause.is_none() &&
-                        keepalives.is_none()
+                    sigs.is_empty() && flags.is_empty() && exc_clause.is_none()
+                        && keepalives.is_none()
                 );
                 assert!(result_ids.len() == 1);
                 assert!(args.len() == 1);
@@ -3908,8 +3916,8 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
             }
             CMU_CI_UVM_NATIVE_UNPIN => {
                 assert_ir!(
-                    sigs.is_empty() && flags.is_empty() && result_ids.is_empty() &&
-                        exc_clause.is_none() && keepalives.is_none()
+                    sigs.is_empty() && flags.is_empty() && result_ids.is_empty()
+                        && exc_clause.is_none() && keepalives.is_none()
                 );
                 assert!(args.len() == 1);
                 assert!(tys.len() == 1);
@@ -3928,9 +3936,9 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
             }
             CMU_CI_UVM_THREAD_EXIT => {
                 assert_ir!(
-                    tys.is_empty() && args.is_empty() && sigs.is_empty() && flags.is_empty() &&
-                        result_ids.is_empty() &&
-                        exc_clause.is_none() && keepalives.is_none()
+                    tys.is_empty() && args.is_empty() && sigs.is_empty() && flags.is_empty()
+                        && result_ids.is_empty() && exc_clause.is_none()
+                        && keepalives.is_none()
                 );
                 Instruction {
                     hdr: hdr,
@@ -3941,8 +3949,8 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
             }
             CMU_CI_UVM_NEW_STACK => {
                 assert_ir!(
-                    tys.is_empty() && flags.is_empty() && exc_clause.is_none() &&
-                        keepalives.is_none()
+                    tys.is_empty() && flags.is_empty() && exc_clause.is_none()
+                        && keepalives.is_none()
                 );
 
                 assert!(sigs.len() == 1);
@@ -3971,11 +3979,9 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
             }
             CMU_CI_UVM_CURRENT_STACK => {
                 assert_ir!(
-                    tys.is_empty() && args.is_empty() && sigs.is_empty() && flags.is_empty() &&
-                        exc_clause.is_none() &&
-                        keepalives.is_none()
+                    tys.is_empty() && args.is_empty() && sigs.is_empty() && flags.is_empty()
+                        && exc_clause.is_none() && keepalives.is_none()
                 );
-
 
                 assert!(result_ids.len() == 1);
                 let impl_stackref = self.ensure_stackref();
@@ -3991,9 +3997,8 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
             }
             CMU_CI_UVM_KILL_STACK => {
                 assert_ir!(
-                    tys.is_empty() && sigs.is_empty() && flags.is_empty() &&
-                        exc_clause.is_none() && keepalives.is_none() &&
-                        result_ids.is_empty()
+                    tys.is_empty() && sigs.is_empty() && flags.is_empty() && exc_clause.is_none()
+                        && keepalives.is_none() && result_ids.is_empty()
                 );
 
                 assert!(args.len() == 1);
@@ -4010,8 +4015,8 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
             }
             CMU_CI_UVM_TR64_IS_FP => {
                 assert_ir!(
-                    tys.is_empty() && sigs.is_empty() && flags.is_empty() &&
-                        exc_clause.is_none() && keepalives.is_none()
+                    tys.is_empty() && sigs.is_empty() && flags.is_empty() && exc_clause.is_none()
+                        && keepalives.is_none()
                 );
                 assert!(result_ids.len() == 1);
                 assert!(args.len() == 1);
@@ -4031,8 +4036,8 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
             }
             CMU_CI_UVM_TR64_IS_INT => {
                 assert_ir!(
-                    tys.is_empty() && sigs.is_empty() && flags.is_empty() &&
-                        exc_clause.is_none() && keepalives.is_none()
+                    tys.is_empty() && sigs.is_empty() && flags.is_empty() && exc_clause.is_none()
+                        && keepalives.is_none()
                 );
                 assert!(result_ids.len() == 1);
                 assert!(args.len() == 1);
@@ -4052,8 +4057,8 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
             }
             CMU_CI_UVM_TR64_IS_REF => {
                 assert_ir!(
-                    tys.is_empty() && sigs.is_empty() && flags.is_empty() &&
-                        exc_clause.is_none() && keepalives.is_none()
+                    tys.is_empty() && sigs.is_empty() && flags.is_empty() && exc_clause.is_none()
+                        && keepalives.is_none()
                 );
                 assert!(result_ids.len() == 1);
                 assert!(args.len() == 1);
@@ -4073,8 +4078,8 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
             }
             CMU_CI_UVM_TR64_FROM_FP => {
                 assert_ir!(
-                    tys.is_empty() && sigs.is_empty() && flags.is_empty() &&
-                        exc_clause.is_none() && keepalives.is_none()
+                    tys.is_empty() && sigs.is_empty() && flags.is_empty() && exc_clause.is_none()
+                        && keepalives.is_none()
                 );
                 assert!(result_ids.len() == 1);
                 assert!(args.len() == 1);
@@ -4095,8 +4100,8 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
             }
             CMU_CI_UVM_TR64_FROM_INT => {
                 assert_ir!(
-                    tys.is_empty() && sigs.is_empty() && flags.is_empty() &&
-                        exc_clause.is_none() && keepalives.is_none()
+                    tys.is_empty() && sigs.is_empty() && flags.is_empty() && exc_clause.is_none()
+                        && keepalives.is_none()
                 );
                 assert!(result_ids.len() == 1);
                 assert!(args.len() == 1);
@@ -4119,8 +4124,8 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
             }
             CMU_CI_UVM_TR64_FROM_REF => {
                 assert_ir!(
-                    tys.is_empty() && sigs.is_empty() && flags.is_empty() &&
-                        exc_clause.is_none() && keepalives.is_none()
+                    tys.is_empty() && sigs.is_empty() && flags.is_empty() && exc_clause.is_none()
+                        && keepalives.is_none()
                 );
                 assert!(result_ids.len() == 1);
                 assert!(args.len() == 2);
@@ -4132,8 +4137,8 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                 let impl_rv = self.new_ssa(fcb, result_ids[0], impl_tagref64)
                     .clone_value();
                 assert_ir!(
-                    impl_opnd1.ty().is_ref() &&
-                        impl_opnd1.ty().get_referent_ty().unwrap().is_void()
+                    impl_opnd1.ty().is_ref()
+                        && impl_opnd1.ty().get_referent_ty().unwrap().is_void()
                 );
                 assert_ir!(
                     impl_opnd2.ty().is_int() && impl_opnd2.ty().get_int_length().unwrap() == 6
@@ -4148,8 +4153,8 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
             }
             CMU_CI_UVM_TR64_TO_FP => {
                 assert_ir!(
-                    tys.is_empty() && sigs.is_empty() && flags.is_empty() &&
-                        exc_clause.is_none() && keepalives.is_none()
+                    tys.is_empty() && sigs.is_empty() && flags.is_empty() && exc_clause.is_none()
+                        && keepalives.is_none()
                 );
                 assert!(result_ids.len() == 1);
                 assert!(args.len() == 1);
@@ -4170,8 +4175,8 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
             }
             CMU_CI_UVM_TR64_TO_INT => {
                 assert_ir!(
-                    tys.is_empty() && sigs.is_empty() && flags.is_empty() &&
-                        exc_clause.is_none() && keepalives.is_none()
+                    tys.is_empty() && sigs.is_empty() && flags.is_empty() && exc_clause.is_none()
+                        && keepalives.is_none()
                 );
                 assert!(result_ids.len() == 1);
                 assert!(args.len() == 1);
@@ -4192,8 +4197,8 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
             }
             CMU_CI_UVM_TR64_TO_REF => {
                 assert_ir!(
-                    tys.is_empty() && sigs.is_empty() && flags.is_empty() &&
-                        exc_clause.is_none() && keepalives.is_none()
+                    tys.is_empty() && sigs.is_empty() && flags.is_empty() && exc_clause.is_none()
+                        && keepalives.is_none()
                 );
                 assert!(result_ids.len() == 1);
                 assert!(args.len() == 1);
@@ -4214,8 +4219,8 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
             }
             CMU_CI_UVM_TR64_TO_TAG => {
                 assert_ir!(
-                    tys.is_empty() && sigs.is_empty() && flags.is_empty() &&
-                        exc_clause.is_none() && keepalives.is_none()
+                    tys.is_empty() && sigs.is_empty() && flags.is_empty() && exc_clause.is_none()
+                        && keepalives.is_none()
                 );
                 assert!(result_ids.len() == 1);
                 assert!(args.len() == 1);

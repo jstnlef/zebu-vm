@@ -80,7 +80,6 @@ impl CStringPool {
     }
 }
 
-
 #[test]
 #[allow(unused_variables)]
 fn test_types_sigs_loading() {
@@ -144,7 +143,6 @@ fn test_types_sigs_loading() {
     }
 }
 
-
 #[test]
 #[allow(unused_variables)]
 fn test_consts_loading() {
@@ -207,7 +205,6 @@ fn test_globals_loading() {
         info!("Finished. ");
     }
 }
-
 
 #[test]
 #[allow(unused_variables)]
@@ -688,7 +685,6 @@ fn test_insts_call() {
             ((*b).new_ret)(b, id_ret, retvars.as_mut_ptr(), retvars.len());
         }
 
-
         ((*b).load)(b);
         ((*ctx).close_context)(ctx);
 
@@ -845,7 +841,6 @@ fn test_insts_new() {
                 ((*b).new_ret)(b, id_ret, args.as_mut_ptr(), args.len());
             }
         }
-
 
         ((*b).load)(b);
         ((*ctx).close_context)(ctx);

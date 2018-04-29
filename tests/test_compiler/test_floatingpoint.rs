@@ -12,9 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-extern crate mu;
-extern crate log;
 extern crate libloading;
+extern crate log;
+extern crate mu;
 
 use self::mu::ast::types::*;
 use self::mu::ast::ir::*;
@@ -801,20 +801,12 @@ fn test_fp_arraysum() {
     let lib = linkutils::aot::compile_fnc("fp_arraysum", &fp_arraysum);
 
     unsafe {
-        let fp_arraysum: libloading::Symbol<unsafe extern "C" fn(*const c_double, u64) -> f64> =
-            lib.get(b"fp_arraysum").unwrap();
+        let fp_arraysum: libloading::Symbol<
+            unsafe extern "C" fn(*const c_double, u64) -> f64
+        > = lib.get(b"fp_arraysum").unwrap();
 
         let array: [f64; 10] = [
-            0f64,
-            0.1f64,
-            0.2f64,
-            0.3f64,
-            0.4f64,
-            0.5f64,
-            0.6f64,
-            0.7f64,
-            0.8f64,
-            0.9f64,
+            0f64, 0.1f64, 0.2f64, 0.3f64, 0.4f64, 0.5f64, 0.6f64, 0.7f64, 0.8f64, 0.9f64
         ];
         let c_array = array.as_ptr() as *const c_double;
 

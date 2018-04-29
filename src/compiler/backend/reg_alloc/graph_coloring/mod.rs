@@ -17,8 +17,7 @@ extern crate petgraph;
 mod liveness;
 mod coloring;
 
-use compiler::backend::reg_alloc::graph_coloring::liveness::build_interference_graph_chaitin_briggs
-as build_inteference_graph;
+use compiler::backend::reg_alloc::graph_coloring::liveness::build_interference_graph_chaitin_briggs as build_inteference_graph;
 use compiler::backend::reg_alloc::graph_coloring::coloring::GraphColoring;
 
 use ast::ir::*;

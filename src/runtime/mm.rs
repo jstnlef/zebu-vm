@@ -56,8 +56,7 @@ pub fn gen_object_encode(backend_ty: &BackendType, size: ByteSize, vm: &VM) -> O
 
     debug!(
         "ENCODE: gen_object_encode: {:?}, size: {}",
-        backend_ty,
-        size
+        backend_ty, size
     );
     debug!("ENCODE: gc_ty: {}, full_gc_ty: {}", gc_tyid, full_tyid);
 
@@ -229,12 +228,10 @@ pub fn allocate_global(
 ) -> ValueLocation {
     let referenced_type = match iref_global.ty.get_referent_ty() {
         Some(ty) => ty,
-        None => {
-            panic!(
-                "expected global to be an iref type, found {}",
-                iref_global.ty
-            )
-        }
+        None => panic!(
+            "expected global to be an iref type, found {}",
+            iref_global.ty
+        )
     };
 
     assert!(

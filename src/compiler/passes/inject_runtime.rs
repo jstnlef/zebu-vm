@@ -102,7 +102,8 @@ impl CompilerPass for InjectRuntime {
                         }
                     }
                     Instruction_::NewHybrid(ref ty, len_index)
-                        if inst.ops[len_index].is_const_value() => {
+                        if inst.ops[len_index].is_const_value() =>
+                    {
                         let len = inst.ops[len_index].as_value().extract_int_const().unwrap();
 
                         let ty_info = vm.get_backend_type_info(ty.id());
@@ -408,9 +409,10 @@ fn gen_allocation_sequence(
                         value: Some(vec![tmp_mutator_loc.clone_value()]),
                         ops: vec![
                             tmp_tl.clone(),
-                            TreeNode::new_value(
-                                Value::make_int64_const(vm.next_id(), mutator_offset as u64)
-                            ),
+                            TreeNode::new_value(Value::make_int64_const(
+                                vm.next_id(),
+                                mutator_offset as u64
+                            )),
                         ],
                         v: Instruction_::ShiftIRef {
                             is_ptr: true,

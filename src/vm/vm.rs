@@ -23,7 +23,7 @@ use ast::types::*;
 use compiler::{Compiler, CompilerPolicy};
 use compiler::backend;
 use compiler::backend::BackendType;
-use compiler::machine_code::{CompiledFunction, CompiledCallsite};
+use compiler::machine_code::{CompiledCallsite, CompiledFunction};
 
 use runtime::thread::*;
 use runtime::*;
@@ -36,12 +36,12 @@ use vm::handle::*;
 use vm::vm_options::VMOptions;
 use vm::vm_options::MuLogLevel;
 
-use log::LogLevel;
+use log::Level;
 use std::sync::Arc;
 use std::sync::RwLock;
 use std::sync::Mutex;
 use std::sync::RwLockWriteGuard;
-use std::sync::atomic::{AtomicUsize, ATOMIC_USIZE_INIT, Ordering};
+use std::sync::atomic::{AtomicUsize, Ordering, ATOMIC_USIZE_INIT};
 use std::thread::JoinHandle;
 use std::collections::LinkedList;
 use std;
@@ -158,9 +158,7 @@ unsafe impl rodal::Dump for VM {
         dumper.dump_object_here(&global_locations);
 
         dumper.dump_padding(&self.func_vers);
-        let func_vers = RwLock::new(
-            rodal::EmptyHashMap::<MuID, RwLock<MuFunctionVersion>>::new()
-        );
+        let func_vers = RwLock::new(rodal::EmptyHashMap::<MuID, RwLock<MuFunctionVersion>>::new());
         dumper.dump_object_here(&func_vers);
 
         dumper.dump_padding(&self.aot_pending_funcref_store);
@@ -346,11 +344,11 @@ impl<'a> VM {
         use std::env;
         match level {
             MuLogLevel::None => {}
-            MuLogLevel::Error => VM::start_logging_internal(LogLevel::Error),
-            MuLogLevel::Warn => VM::start_logging_internal(LogLevel::Warn),
-            MuLogLevel::Info => VM::start_logging_internal(LogLevel::Info),
-            MuLogLevel::Debug => VM::start_logging_internal(LogLevel::Debug),
-            MuLogLevel::Trace => VM::start_logging_internal(LogLevel::Trace),
+            MuLogLevel::Error => VM::start_logging_internal(Level::Error),
+            MuLogLevel::Warn => VM::start_logging_internal(Level::Warn),
+            MuLogLevel::Info => VM::start_logging_internal(Level::Info),
+            MuLogLevel::Debug => VM::start_logging_internal(Level::Debug),
+            MuLogLevel::Trace => VM::start_logging_internal(Level::Trace),
             MuLogLevel::Env => {
                 match env::var("MU_LOG_LEVEL") {
                     Ok(s) => VM::start_logging(MuLogLevel::from_string(s)),
@@ -362,7 +360,7 @@ impl<'a> VM {
 
     /// starts trace-level logging
     pub fn start_logging_trace() {
-        VM::start_logging_internal(LogLevel::Trace)
+        VM::start_logging_internal(Level::Trace)
     }
 
     /// starts logging based on MU_LOG_LEVEL environment variable
@@ -370,27 +368,25 @@ impl<'a> VM {
         VM::start_logging(MuLogLevel::Env)
     }
 
-    /// starts logging based on Rust's LogLevel
+    /// starts logging based on Rust's Log Level
     /// (this function actually initializes logger and deals with error)
-    fn start_logging_internal(level: LogLevel) {
+    fn start_logging_internal(level: Level) {
         use stderrlog;
 
         let verbose = match level {
-            LogLevel::Error => 0,
-            LogLevel::Warn => 1,
-            LogLevel::Info => 2,
-            LogLevel::Debug => 3,
-            LogLevel::Trace => 4
+            Level::Error => 0,
+            Level::Warn => 1,
+            Level::Info => 2,
+            Level::Debug => 3,
+            Level::Trace => 4
         };
 
         match stderrlog::new().verbosity(verbose).init() {
-            Ok(()) => { info!("logger initialized") }
-            Err(e) => {
-                error!(
-                    "failed to init logger, probably already initialized: {:?}",
-                    e
-                )
-            }
+            Ok(()) => info!("logger initialized"),
+            Err(e) => error!(
+                "failed to init logger, probably already initialized: {:?}",
+                e
+            )
         }
     }
 
@@ -1517,8 +1513,8 @@ impl<'a> VM {
             MemoryOrder::Relaxed => Ordering::Relaxed,
             MemoryOrder::Acquire => Ordering::Acquire,
             MemoryOrder::SeqCst => Ordering::SeqCst,
-            MemoryOrder::NotAtomic => Ordering::Relaxed,    // use relax for not atomic
-            MemoryOrder::Consume => Ordering::Acquire,    // use acquire for consume
+            MemoryOrder::NotAtomic => Ordering::Relaxed, // use relax for not atomic
+            MemoryOrder::Consume => Ordering::Acquire,   // use acquire for consume
             _ => panic!("unsupported order {:?} for LOAD", ord)
         };
 
@@ -1559,7 +1555,7 @@ impl<'a> VM {
             MemoryOrder::Relaxed => Ordering::Relaxed,
             MemoryOrder::Release => Ordering::Release,
             MemoryOrder::SeqCst => Ordering::SeqCst,
-            MemoryOrder::NotAtomic => Ordering::Relaxed,    // use relaxed for not atomic
+            MemoryOrder::NotAtomic => Ordering::Relaxed, // use relaxed for not atomic
             _ => panic!("unsupported order {:?} for STORE", ord)
         };
 
@@ -1583,8 +1579,9 @@ impl<'a> VM {
                 APIHandleValue::UPtr(_, aval) => addr.store::<Address>(aval),
                 APIHandleValue::UFP(_, aval) => addr.store::<Address>(aval),
 
-                APIHandleValue::Struct(_) | APIHandleValue::Array(_) |
-                APIHandleValue::Vector(_) => unimplemented!(),
+                APIHandleValue::Struct(_)
+                | APIHandleValue::Array(_)
+                | APIHandleValue::Vector(_) => unimplemented!(),
 
                 APIHandleValue::Ref(_, aval) | APIHandleValue::IRef(_, aval) => {
                     addr.store::<Address>(aval)
@@ -1703,12 +1700,10 @@ impl<'a> VM {
             Value_::Constant(Constant::Int(val)) => {
                 let len = match const_ty.get_int_length() {
                     Some(len) => len,
-                    None => {
-                        panic!(
-                            "expected ty to be Int for a Constant::Int, found {}",
-                            const_ty
-                        )
-                    }
+                    None => panic!(
+                        "expected ty to be Int for a Constant::Int, found {}",
+                        const_ty
+                    )
                 };
 
                 APIHandle {
@@ -1716,25 +1711,19 @@ impl<'a> VM {
                     v: APIHandleValue::Int(val, len)
                 }
             }
-            Value_::Constant(Constant::Float(val)) => {
-                APIHandle {
-                    id: handle_id,
-                    v: APIHandleValue::Float(val)
-                }
-            }
-            Value_::Constant(Constant::Double(val)) => {
-                APIHandle {
-                    id: handle_id,
-                    v: APIHandleValue::Double(val)
-                }
-            }
+            Value_::Constant(Constant::Float(val)) => APIHandle {
+                id: handle_id,
+                v: APIHandleValue::Float(val)
+            },
+            Value_::Constant(Constant::Double(val)) => APIHandle {
+                id: handle_id,
+                v: APIHandleValue::Double(val)
+            },
             Value_::Constant(Constant::FuncRef(_)) => unimplemented!(),
-            Value_::Constant(Constant::NullRef) => {
-                APIHandle {
-                    id: handle_id,
-                    v: APIHandleValue::Ref(types::VOID_TYPE.clone(), unsafe { Address::zero() })
-                }
-            }
+            Value_::Constant(Constant::NullRef) => APIHandle {
+                id: handle_id,
+                v: APIHandleValue::Ref(types::VOID_TYPE.clone(), unsafe { Address::zero() })
+            },
             _ => unimplemented!()
         };
 
@@ -1875,8 +1864,8 @@ impl<'a> VM {
             id: handle_id,
             v: APIHandleValue::Ref(types::REF_VOID_TYPE.clone(), unsafe {
                 Address::from_usize(
-                    ((opnd & 0x7ffffffffff8u64) | u64_asr((opnd & 0x8000000000000000u64), 16)) as
-                        usize
+                    ((opnd & 0x7ffffffffff8u64) | u64_asr(opnd & 0x8000000000000000u64, 16))
+                        as usize
                 )
             })
         })
@@ -1889,7 +1878,7 @@ impl<'a> VM {
         self.new_handle(APIHandle {
             id: handle_id,
             v: APIHandleValue::Int(
-                u64_asr((opnd & 0x000f800000000000u64), 46) | (u64_asr((opnd & 0x4), 2)),
+                u64_asr(opnd & 0x000f800000000000u64, 46) | (u64_asr(opnd & 0x4, 2)),
                 6
             )
         })
@@ -1919,8 +1908,8 @@ impl<'a> VM {
         self.new_handle(APIHandle {
             id: handle_id,
             v: APIHandleValue::TagRef64(
-                0x7ff0000000000001u64 | ((opnd & 0x7ffffffffffffu64) << 1) |
-                    ((opnd & 0x8000000000000u64) << 12)
+                0x7ff0000000000001u64 | ((opnd & 0x7ffffffffffffu64) << 1)
+                    | ((opnd & 0x8000000000000u64) << 12)
             )
         })
     }
@@ -1934,9 +1923,9 @@ impl<'a> VM {
         self.new_handle(APIHandle {
             id: handle_id,
             v: APIHandleValue::TagRef64(
-                0x7ff0000000000002u64 | (addr_ & 0x7ffffffffff8u64) |
-                    ((addr_ & 0x800000000000u64) << 16) |
-                    ((tag_ & 0x3eu64) << 46) | ((tag_ & 0x1) << 2)
+                0x7ff0000000000002u64 | (addr_ & 0x7ffffffffff8u64)
+                    | ((addr_ & 0x800000000000u64) << 16) | ((tag_ & 0x3eu64) << 46)
+                    | ((tag_ & 0x1) << 2)
             )
         })
     }
