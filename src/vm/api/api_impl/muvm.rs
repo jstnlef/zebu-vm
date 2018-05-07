@@ -16,8 +16,8 @@ use super::common::*;
 use std::sync::Arc;
 
 use runtime::thread;
-use utils::Address;
 use std::mem::transmute;
+use utils::Address;
 
 pub struct MuVM {
     // The actual VM
@@ -117,10 +117,7 @@ impl MuVM {
 
     pub fn current_thread_as_mu_thread(&self, threadlocal: CMuCPtr) {
         unsafe {
-            thread::MuThread::current_thread_as_mu_thread(
-                transmute::<CMuCPtr, Address>(threadlocal),
-                self.vm.clone()
-            );
+            thread::MuThread::current_thread_as_mu_thread(transmute::<CMuCPtr, Address>(threadlocal), self.vm.clone());
         }
     }
 }

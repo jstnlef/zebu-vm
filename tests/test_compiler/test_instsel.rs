@@ -14,9 +14,9 @@
 
 extern crate mu;
 
-use test_ir::test_ir::factorial;
 use self::mu::compiler::*;
 use self::mu::vm::VM;
+use test_ir::test_ir::factorial;
 
 use std::sync::Arc;
 
@@ -41,11 +41,7 @@ fn test_instsel_fac() {
     let funcs = vm.funcs().read().unwrap();
     let func = funcs.get(&func_id).unwrap().read().unwrap();
     let func_vers = vm.func_vers().read().unwrap();
-    let mut func_ver = func_vers
-        .get(&func.cur_ver.unwrap())
-        .unwrap()
-        .write()
-        .unwrap();
+    let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
 
     compiler.compile(&mut func_ver);
 }

@@ -12,10 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use ast::ptr::*;
 use ast::ir::*;
-use vm::VM;
+use ast::ptr::*;
 use std::any::Any;
+use vm::VM;
 
 /// An inlining pass. Based on a certain criteria, the compiler chooses certain functions to be
 /// inlined in their callsite by rewriting the call into a branch with several copied blocks from

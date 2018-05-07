@@ -15,9 +15,9 @@
 extern crate libloading as ll;
 extern crate mu;
 
-use test_ir::test_ir::sum;
-use test_ir::test_ir::factorial;
 use mu::linkutils;
+use test_ir::test_ir::factorial;
+use test_ir::test_ir::sum;
 
 #[test]
 fn test_factorial() {

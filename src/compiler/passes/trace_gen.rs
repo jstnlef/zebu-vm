@@ -12,15 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use ast::ir::*;
-use ast::types::*;
 use ast::inst::*;
-use ast::ptr::*;
+use ast::ir::*;
 use ast::op::CmpOp;
-use vm::VM;
+use ast::ptr::*;
+use ast::types::*;
 use compiler::CompilerPass;
-use utils::LinkedHashSet;
 use std::any::Any;
+use utils::LinkedHashSet;
+use vm::VM;
 
 pub struct TraceGen {
     name: &'static str
@@ -83,12 +83,7 @@ impl CompilerPass for TraceGen {
 
                 // append current block to the trace
                 if !trace.contains(&cur_block.id()) {
-                    trace_if!(
-                        LOG_TRACE_SCHEDULE,
-                        "add {} #{} to trace",
-                        cur_block,
-                        cur_block.id()
-                    );
+                    trace_if!(LOG_TRACE_SCHEDULE, "add {} #{} to trace", cur_block, cur_block.id());
                     trace.push(cur_block.id());
 
                     // trying to find next block
@@ -104,14 +99,8 @@ impl CompilerPass for TraceGen {
                     );
 
                     // put other succeeding blocks to different work stacks
-                    let mut all_successors: LinkedHashSet<MuID> = LinkedHashSet::from_vec(
-                        cur_block
-                            .control_flow
-                            .succs
-                            .iter()
-                            .map(|x| x.target)
-                            .collect()
-                    );
+                    let mut all_successors: LinkedHashSet<MuID> =
+                        LinkedHashSet::from_vec(cur_block.control_flow.succs.iter().map(|x| x.target).collect());
                     // remove next block from it
                     if next_block.is_some() {
                         all_successors.remove(&next_block.unwrap());
@@ -122,35 +111,19 @@ impl CompilerPass for TraceGen {
                         let succ = f_content.get_block(*succ_id);
                         match succ.trace_hint {
                             TraceHint::None => {
-                                trace_if!(
-                                    LOG_TRACE_SCHEDULE,
-                                    "push {} #{} to work stack",
-                                    succ,
-                                    succ_id
-                                );
+                                trace_if!(LOG_TRACE_SCHEDULE, "push {} #{} to work stack", succ, succ_id);
                                 work_stack.insert(*succ_id);
                             }
                             TraceHint::SlowPath => {
-                                trace_if!(
-                                    LOG_TRACE_SCHEDULE,
-                                    "push {} #{} to slow path",
-                                    succ,
-                                    succ_id
-                                );
+                                trace_if!(LOG_TRACE_SCHEDULE, "push {} #{} to slow path", succ, succ_id);
                                 slowpath_queue.insert(*succ_id);
                             }
                             TraceHint::ReturnSink => {
                                 assert!(
-                                    ret_sink.is_none()
-                                        || (ret_sink.is_some() && ret_sink.unwrap() == *succ_id),
+                                    ret_sink.is_none() || (ret_sink.is_some() && ret_sink.unwrap() == *succ_id),
                                     "cannot have more than one return sink"
                                 );
-                                trace_if!(
-                                    LOG_TRACE_SCHEDULE,
-                                    "set {} #{} as return sink",
-                                    succ,
-                                    succ_id
-                                );
+                                trace_if!(LOG_TRACE_SCHEDULE, "set {} #{} as return sink", succ, succ_id);
                                 ret_sink = Some(*succ_id);
                             }
                             TraceHint::FastPath => {
@@ -244,11 +217,7 @@ fn find_next_block(cur_block: &Block, func: &MuFunctionVersion) -> Option<MuID> 
     } else {
         // we need to find next path by examining probability
         if succs.len() == 0 {
-            trace_if!(
-                LOG_TRACE_SCHEDULE,
-                "cannot find successors of block {}",
-                cur_block
-            );
+            trace_if!(LOG_TRACE_SCHEDULE, "cannot find successors of block {}", cur_block);
             None
         } else {
             trace_if!(LOG_TRACE_SCHEDULE, "successors: {:?}", succs);
@@ -272,12 +241,7 @@ fn find_next_block(cur_block: &Block, func: &MuFunctionVersion) -> Option<MuID> 
                 let mut hot_prob = ideal_successors[0].probability;
 
                 for edge in ideal_successors.iter() {
-                    trace_if!(
-                        LOG_TRACE_SCHEDULE,
-                        "succ: {}/{}",
-                        edge.target,
-                        edge.probability
-                    );
+                    trace_if!(LOG_TRACE_SCHEDULE, "succ: {}/{}", edge.target, edge.probability);
                     if edge.probability >= hot_prob {
                         hot_blk = edge.target;
                         hot_prob = edge.probability;
@@ -347,21 +311,13 @@ fn branch_adjustment(func: &mut MuFunctionVersion, vm: &VM) {
 
                         trace_if!(LOG_TRACE_SCHEDULE, "true_label = {}", true_label_id);
                         trace_if!(LOG_TRACE_SCHEDULE, "false_label = {}", false_label_id);
-                        trace_if!(
-                            LOG_TRACE_SCHEDULE,
-                            "next_block_in_trace = {:?}",
-                            next_block_in_trace
-                        );
+                        trace_if!(LOG_TRACE_SCHEDULE, "next_block_in_trace = {:?}", next_block_in_trace);
 
-                        if next_block_in_trace.is_some()
-                            && next_block_in_trace.unwrap() == false_label_id
-                        {
+                        if next_block_in_trace.is_some() && next_block_in_trace.unwrap() == false_label_id {
                             // any conditional branch followed by its false label stays unchanged
                             trace_if!(LOG_TRACE_SCHEDULE, ">>stays unchanged");
                             new_body.push(node.clone());
-                        } else if next_block_in_trace.is_some()
-                            && next_block_in_trace.unwrap() == true_label_id
-                        {
+                        } else if next_block_in_trace.is_some() && next_block_in_trace.unwrap() == true_label_id {
                             // for conditional branch followed by its true label
                             // we switch the true and false label, and negate the condition
                             let new_true_dest = false_dest.clone();
@@ -390,12 +346,8 @@ fn branch_adjustment(func: &mut MuFunctionVersion, vm: &VM) {
                                     // orig: if (cond)        then L1 else L2
                                     // new : if ((cond) EQ 0) then L2 else L1
                                     _ => {
-                                        let temp_res: P<
-                                            TreeNode
-                                        > = func.new_ssa(
-                                            MuEntityHeader::unnamed(vm.next_id()),
-                                            UINT1_TYPE.clone()
-                                        );
+                                        let temp_res: P<TreeNode> =
+                                            func.new_ssa(MuEntityHeader::unnamed(vm.next_id()), UINT1_TYPE.clone());
                                         let const_0 = func.new_constant(Value::make_int_const_ty(
                                             vm.next_id(),
                                             UINT1_TYPE.clone(),
@@ -446,10 +398,8 @@ fn branch_adjustment(func: &mut MuFunctionVersion, vm: &VM) {
                             // Lnew_false (arg list):
                             //   BRANCH Lfalse (arg list)
                             let new_false_block = {
-                                let block_name =
-                                    Arc::new(format!("{}:#{}:false", func.name(), node.id()));
-                                let mut block =
-                                    Block::new(MuEntityHeader::named(vm.next_id(), block_name));
+                                let block_name = Arc::new(format!("{}:#{}:false", func.name(), node.id()));
+                                let mut block = Block::new(MuEntityHeader::named(vm.next_id(), block_name));
 
                                 let block_args: Vec<P<TreeNode>> = false_dest
                                     .args
@@ -473,9 +423,7 @@ fn branch_adjustment(func: &mut MuFunctionVersion, vm: &VM) {
                                             ops: block_args,
                                             v: Instruction_::Branch1(Destination {
                                                 target: false_dest.target.clone(),
-                                                args: (0..block_args_len)
-                                                    .map(|x| DestArg::Normal(x))
-                                                    .collect()
+                                                args: (0..block_args_len).map(|x| DestArg::Normal(x)).collect()
                                             })
                                         }),
                                     ],
@@ -508,8 +456,7 @@ fn branch_adjustment(func: &mut MuFunctionVersion, vm: &VM) {
 
                             // add new false block to trace (immediate after this block)
                             if let Some(next_block) = next_block_in_trace {
-                                let next_block_index =
-                                    trace.iter().position(|x| *x == next_block).unwrap();
+                                let next_block_index = trace.iter().position(|x| *x == next_block).unwrap();
                                 trace.insert(next_block_index, new_false_block.id());
                             } else {
                                 trace.push(new_false_block.id());

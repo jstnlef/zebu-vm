@@ -16,18 +16,18 @@ extern crate libloading;
 extern crate log;
 extern crate mu;
 
-use self::mu::ast::types::*;
-use self::mu::ast::ir::*;
 use self::mu::ast::inst::*;
-use self::mu::vm::*;
+use self::mu::ast::ir::*;
+use self::mu::ast::types::*;
 use self::mu::compiler::*;
 use self::mu::runtime::thread::MuThread;
 use self::mu::utils::Address;
 use self::mu::utils::LinkedHashMap;
+use self::mu::vm::*;
 
-use std::sync::Arc;
 use self::mu::linkutils;
 use self::mu::linkutils::aot;
+use std::sync::Arc;
 
 #[test]
 fn test_allocation_fastpath() {
@@ -110,11 +110,7 @@ fn test_instruction_new_on_cur_thread() {
         let funcs = vm.funcs().read().unwrap();
         let func = funcs.get(&func_id).unwrap().read().unwrap();
         let func_vers = vm.func_vers().read().unwrap();
-        let mut func_ver = func_vers
-            .get(&func.cur_ver.unwrap())
-            .unwrap()
-            .write()
-            .unwrap();
+        let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
 
         compiler.compile(&mut func_ver);
     }

@@ -14,16 +14,16 @@
 
 #![allow(dead_code)]
 
-use compiler::CompilerPass;
 use ast::ir::*;
-use vm::VM;
+use compiler::CompilerPass;
 use compiler::backend::emit_code;
 use std::any::Any;
+use vm::VM;
 
-use std::path;
-use std::io::prelude::*;
-use std::fs::File;
 use std::collections::HashMap;
+use std::fs::File;
+use std::io::prelude::*;
+use std::path;
 pub use vm::uir_output::create_emit_directory;
 /// should emit machien code dot graph?
 pub const EMIT_MC_DOT: bool = true;
@@ -34,9 +34,7 @@ pub struct CodeEmission {
 
 impl CodeEmission {
     pub fn new() -> CodeEmission {
-        CodeEmission {
-            name: "Code Emission"
-        }
+        CodeEmission { name: "Code Emission" }
     }
 }
 
@@ -67,11 +65,7 @@ fn create_emit_file(name: String, vm: &VM) -> File {
     file_path.push(name);
 
     match File::create(file_path.as_path()) {
-        Err(why) => panic!(
-            "couldn't create emit file {}: {}",
-            file_path.to_str().unwrap(),
-            why
-        ),
+        Err(why) => panic!("couldn't create emit file {}: {}", file_path.to_str().unwrap(), why),
         Ok(file) => file
     }
 }
@@ -110,12 +104,7 @@ fn emit_mc_dot(func: &MuFunctionVersion, vm: &VM) {
 
     for block_name in blocks.iter() {
         // BB [label = "
-        write!(
-            file,
-            "{} [label = \"{}:\\l\\l",
-            id(block_name.clone()),
-            block_name
-        ).unwrap();
+        write!(file, "{} [label = \"{}:\\l\\l", id(block_name.clone()), block_name).unwrap();
 
         for inst in mc.get_block_range(&block_name).unwrap() {
             file.write_all(&mc.emit_inst(inst)).unwrap();
@@ -129,9 +118,7 @@ fn emit_mc_dot(func: &MuFunctionVersion, vm: &VM) {
     for block_name in blocks.iter() {
         let end_inst = mc.get_block_range(block_name).unwrap().end;
 
-        for succ in mc.get_succs(mc.get_last_inst(end_inst).unwrap())
-            .into_iter()
-        {
+        for succ in mc.get_succs(mc.get_last_inst(end_inst).unwrap()).into_iter() {
             match mc.get_block_for_inst(*succ) {
                 Some(target) => {
                     let source_id = id(block_name.clone());

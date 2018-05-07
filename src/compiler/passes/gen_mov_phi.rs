@@ -12,9 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use ast::inst::*;
 use ast::ir::*;
 use ast::ptr::*;
-use ast::inst::*;
 use vm::VM;
 
 use compiler::CompilerPass;
@@ -121,10 +121,7 @@ impl CompilerPass for GenMovPhi {
                                     trace!("rewrite to {}", new_inst);
                                     new_body.push(new_inst);
                                 }
-                                Instruction_::Call {
-                                    ref data,
-                                    ref resume
-                                } => {
+                                Instruction_::Call { ref data, ref resume } => {
                                     let norm_dest = process_dest(
                                         &resume.normal_dest,
                                         &mut new_blocks_to_insert,
@@ -158,10 +155,7 @@ impl CompilerPass for GenMovPhi {
                                     trace!("rewrite to {}", new_inst);
                                     new_body.push(new_inst);
                                 }
-                                Instruction_::CCall {
-                                    ref data,
-                                    ref resume
-                                } => {
+                                Instruction_::CCall { ref data, ref resume } => {
                                     let norm_dest = process_dest(
                                         &resume.normal_dest,
                                         &mut new_blocks_to_insert,
@@ -308,10 +302,7 @@ impl CompilerPass for GenMovPhi {
             // create intermediate block
             let block = {
                 let target_id = block_info.target; //
-                let mut ret = Block::new(MuEntityHeader::named(
-                    block_info.blk_id,
-                    block_info.blk_name.clone()
-                ));
+                let mut ret = Block::new(MuEntityHeader::named(block_info.blk_id, block_info.blk_name.clone()));
 
                 let target_block = f_content.get_block_mut(target_id);
                 assert!(target_block.content.is_some());
@@ -405,13 +396,7 @@ fn process_dest(
         }
 
         let new_blk_id = vm.next_id();
-        let new_blck_name = Arc::new(format!(
-            "{}:{}:#{}-#{}",
-            inst,
-            label,
-            new_blk_id,
-            target.name()
-        ));
+        let new_blck_name = Arc::new(format!("{}:{}:#{}-#{}", inst, label, new_blk_id, target.name()));
 
         let dest = Destination {
             target: MuEntityHeader::named(new_blk_id, new_blck_name.clone()),

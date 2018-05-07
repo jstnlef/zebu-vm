@@ -39,17 +39,17 @@ use utils::Address;
 #[cfg(feature = "aot")]
 pub use compiler::backend::aarch64::asm_backend::spill_rewrite;
 
-use ast::ptr::P;
 use ast::ir::*;
-use ast::types::*;
 use ast::op;
+use ast::ptr::P;
+use ast::types::*;
 use compiler::backend::RegGroup;
 use vm::VM;
 
-use utils::ByteSize;
-use utils::math::align_up;
-use utils::LinkedHashMap;
 use std::collections::HashMap;
+use utils::ByteSize;
+use utils::LinkedHashMap;
+use utils::math::align_up;
 
 // Number of nromal callee saved registers (excluding FP and LR, and SP)
 pub const CALLEE_SAVED_COUNT: usize = 18;
@@ -902,9 +902,9 @@ pub fn estimate_insts_for_ir(inst: &Instruction) -> usize {
 
     match inst.v {
         // simple
-        BinOp(_, _, _) => 1,
-        BinOpWithStatus(_, _, _, _) => 2,
-        CmpOp(_, _, _) => 1,
+        BinOp(..) => 1,
+        BinOpWithStatus(..) => 2,
+        CmpOp(..) => 1,
         ConvOp { .. } => 1,
 
         // control flow
@@ -925,18 +925,14 @@ pub fn estimate_insts_for_ir(inst: &Instruction) -> usize {
         CmpXchg { .. } => 1,
         AtomicRMW { .. } => 1,
         AllocA(_) => 1,
-        AllocAHybrid(_, _) => 1,
+        AllocAHybrid(..) => 1,
         Fence(_) => 1,
 
         // memory addressing
-        GetIRef(_)
-        | GetFieldIRef { .. }
-        | GetElementIRef { .. }
-        | ShiftIRef { .. }
-        | GetVarPartIRef { .. } => 0,
+        GetIRef(_) | GetFieldIRef { .. } | GetElementIRef { .. } | ShiftIRef { .. } | GetVarPartIRef { .. } => 0,
 
         // runtime
-        New(_) | NewHybrid(_, _) => 10,
+        New(_) | NewHybrid(..) => 10,
         NewStack(_) | NewThread { .. } | NewFrameCursor(_) => 10,
         ThreadExit => 10,
         CurrentStack => 10,
@@ -958,12 +954,7 @@ pub fn estimate_insts_for_ir(inst: &Instruction) -> usize {
 
 // Splits an integer immediate into four 16-bit segments (returns the least significant first)
 pub fn split_aarch64_imm_u64(val: u64) -> (u16, u16, u16, u16) {
-    (
-        val as u16,
-        (val >> 16) as u16,
-        (val >> 32) as u16,
-        (val >> 48) as u16
-    )
+    (val as u16, (val >> 16) as u16, (val >> 32) as u16, (val >> 48) as u16)
 }
 
 // Trys to reduce the given floating point to an immediate u64 that can be used with MOVI
@@ -995,11 +986,8 @@ pub fn is_valid_f32_imm(val: f32) -> bool {
 
     let b = get_bit(uval as u64, 0x19);
 
-    get_bit(uval as u64, 0x1E) == !b && ((uval & (0b11111 << 0x19)) == if b {
-        0b11111 << 0x19
-    } else {
-        0
-    }) && ((uval & !(0b1111111111111 << 0x13)) == 0)
+    get_bit(uval as u64, 0x1E) == !b && ((uval & (0b11111 << 0x19)) == if b { 0b11111 << 0x19 } else { 0 })
+        && ((uval & !(0b1111111111111 << 0x13)) == 0)
 }
 
 // Reduces the given floating point constant to 8-bits
@@ -1016,11 +1004,8 @@ pub fn is_valid_f64_imm(val: f64) -> bool {
 
     let b = (uval & (1 << 0x36)) != 0;
 
-    ((uval & (1 << 0x3E)) != 0) == !b && ((uval & (0b11111111 << 0x36)) == if b {
-        0b11111111 << 0x36
-    } else {
-        0
-    }) && ((uval & !(0b1111111111111111 << 0x30)) == 0)
+    ((uval & (1 << 0x3E)) != 0) == !b && ((uval & (0b11111111 << 0x36)) == if b { 0b11111111 << 0x36 } else { 0 })
+        && ((uval & !(0b1111111111111111 << 0x30)) == 0)
 }
 
 // Returns the 'ith bit of x
@@ -1473,9 +1458,7 @@ pub fn value_imm_to_f64(op: &P<Value>) -> f64 {
 
 pub fn value_imm_to_u64(op: &P<Value>) -> u64 {
     match op.v {
-        Value_::Constant(Constant::Int(val)) => {
-            get_unsigned_value(val as u64, op.ty.get_int_length().unwrap())
-        }
+        Value_::Constant(Constant::Int(val)) => get_unsigned_value(val as u64, op.ty.get_int_length().unwrap()),
         Value_::Constant(Constant::NullRef) => 0,
         _ => panic!("expected imm int")
     }
@@ -1497,9 +1480,7 @@ pub fn value_imm_to_i64(op: &P<Value>, signed: bool) -> u64 {
 
 pub fn value_imm_to_s64(op: &P<Value>) -> i64 {
     match op.v {
-        Value_::Constant(Constant::Int(val)) => {
-            get_signed_value(val as u64, op.ty.get_int_length().unwrap())
-        }
+        Value_::Constant(Constant::Int(val)) => get_signed_value(val as u64, op.ty.get_int_length().unwrap()),
         Value_::Constant(Constant::NullRef) => 0,
         _ => panic!("expected imm int")
     }
@@ -1596,13 +1577,7 @@ pub fn make_temporary(f_context: &mut FunctionContext, ty: P<MuType>, vm: &VM) -
     f_context.make_temporary(vm.next_id(), ty).clone_value()
 }
 
-fn emit_mov_f64(
-    backend: &mut CodeGenerator,
-    dest: &P<Value>,
-    f_context: &mut FunctionContext,
-    vm: &VM,
-    val: f64
-) {
+fn emit_mov_f64(backend: &mut CodeGenerator, dest: &P<Value>, f_context: &mut FunctionContext, vm: &VM, val: f64) {
     use std::mem;
     if val == 0.0 {
         backend.emit_fmov(&dest, &XZR);
@@ -1617,9 +1592,7 @@ fn emit_mov_f64(
             None => {
                 // Have to load a temporary GPR with the value first
                 let tmp_int = make_temporary(f_context, UINT64_TYPE.clone(), vm);
-                emit_mov_u64(backend, &tmp_int, unsafe {
-                    mem::transmute::<f64, u64>(val)
-                });
+                emit_mov_u64(backend, &tmp_int, unsafe { mem::transmute::<f64, u64>(val) });
 
                 // then move it to an FPR
                 backend.emit_fmov(&dest, &tmp_int);
@@ -1628,13 +1601,7 @@ fn emit_mov_f64(
     }
 }
 
-fn emit_mov_f32(
-    backend: &mut CodeGenerator,
-    dest: &P<Value>,
-    f_context: &mut FunctionContext,
-    vm: &VM,
-    val: f32
-) {
+fn emit_mov_f32(backend: &mut CodeGenerator, dest: &P<Value>, f_context: &mut FunctionContext, vm: &VM, val: f32) {
     use std::mem;
     if val == 0.0 {
         backend.emit_fmov(&dest, &WZR);
@@ -1644,11 +1611,7 @@ fn emit_mov_f32(
         // Have to load a temporary GPR with the value first
         let tmp_int = make_temporary(f_context, UINT32_TYPE.clone(), vm);
 
-        emit_mov_u64(
-            backend,
-            &tmp_int,
-            unsafe { mem::transmute::<f32, u32>(val) } as u64
-        );
+        emit_mov_u64(backend, &tmp_int, unsafe { mem::transmute::<f32, u32>(val) } as u64);
         // then move it to an FPR
         backend.emit_fmov(&dest, &tmp_int);
     }
@@ -1812,13 +1775,7 @@ fn emit_add_u64(backend: &mut CodeGenerator, dest: &P<Value>, src: &P<Value>, va
 }
 
 // dest = src1*val + src2
-fn emit_madd_u64(
-    backend: &mut CodeGenerator,
-    dest: &P<Value>,
-    src1: &P<Value>,
-    val: u64,
-    src2: &P<Value>
-) {
+fn emit_madd_u64(backend: &mut CodeGenerator, dest: &P<Value>, src1: &P<Value>, val: u64, src2: &P<Value>) {
     if val == 0 {
         // dest = src2
         backend.emit_mov(&dest, &src2);
@@ -1882,13 +1839,7 @@ fn emit_madd_u64_u64(
 }
 
 // Compare register with value
-fn emit_cmp_u64(
-    backend: &mut CodeGenerator,
-    src1: &P<Value>,
-    f_context: &mut FunctionContext,
-    vm: &VM,
-    val: u64
-) {
+fn emit_cmp_u64(backend: &mut CodeGenerator, src1: &P<Value>, f_context: &mut FunctionContext, vm: &VM, val: u64) {
     if (val as i64) < 0 {
         emit_cmn_u64(backend, &src1, f_context, vm, (-(val as i64) as u64));
     } else if val == 0 {
@@ -1906,13 +1857,7 @@ fn emit_cmp_u64(
 }
 
 // Compare register with value
-fn emit_cmn_u64(
-    backend: &mut CodeGenerator,
-    src1: &P<Value>,
-    f_context: &mut FunctionContext,
-    vm: &VM,
-    val: u64
-) {
+fn emit_cmn_u64(backend: &mut CodeGenerator, src1: &P<Value>, f_context: &mut FunctionContext, vm: &VM, val: u64) {
     if (val as i64) < 0 {
         emit_cmp_u64(backend, &src1, f_context, vm, (-(val as i64) as u64));
     } else if val == 0 {
@@ -1966,11 +1911,7 @@ fn emit_oext(backend: &mut CodeGenerator, reg: &P<Value>) {
 
 // Masks 'src' so that it can be used to shift 'dest'
 // Returns a register that should be used for the shift operand (may be dest or src)
-fn emit_shift_mask<'b>(
-    backend: &mut CodeGenerator,
-    dest: &'b P<Value>,
-    src: &'b P<Value>
-) -> &'b P<Value> {
+fn emit_shift_mask<'b>(backend: &mut CodeGenerator, dest: &'b P<Value>, src: &'b P<Value>) -> &'b P<Value> {
     let ndest = dest.ty.get_int_length().unwrap() as u64;
 
     if ndest != 32 && ndest != 64 {
@@ -1982,12 +1923,7 @@ fn emit_shift_mask<'b>(
     }
 }
 // TODO: Deal with memory case
-fn emit_reg_value(
-    backend: &mut CodeGenerator,
-    pv: &P<Value>,
-    f_context: &mut FunctionContext,
-    vm: &VM
-) -> P<Value> {
+fn emit_reg_value(backend: &mut CodeGenerator, pv: &P<Value>, f_context: &mut FunctionContext, vm: &VM) -> P<Value> {
     if is_int_reg(&pv) || is_int_ex_reg(&pv) {
         emit_ireg_value(backend, pv, f_context, vm)
     } else if is_fp_reg(&pv) {
@@ -2033,12 +1969,7 @@ pub fn emit_ireg_value(
                 &Constant::FuncRef(ref func) => {
                     let tmp = make_temporary(f_context, pv.ty.clone(), vm);
 
-                    let mem = make_value_symbolic(
-                        vm.get_name_for_func(func.id()),
-                        true,
-                        &ADDRESS_TYPE,
-                        vm
-                    );
+                    let mem = make_value_symbolic(vm.get_name_for_func(func.id()), true, &ADDRESS_TYPE, vm);
                     emit_calculate_address(backend, &tmp, &mem, vm);
                     tmp
                 }
@@ -2068,12 +1999,7 @@ pub fn emit_ireg_value(
 }
 
 // TODO: Deal with memory case
-fn emit_fpreg_value(
-    backend: &mut CodeGenerator,
-    pv: &P<Value>,
-    f_context: &mut FunctionContext,
-    vm: &VM
-) -> P<Value> {
+fn emit_fpreg_value(backend: &mut CodeGenerator, pv: &P<Value>, f_context: &mut FunctionContext, vm: &VM) -> P<Value> {
     match pv.v {
         Value_::SSAVar(_) => pv.clone(),
         Value_::Constant(Constant::Double(val)) => {
@@ -2090,18 +2016,9 @@ fn emit_fpreg_value(
     }
 }
 
-fn split_int128(
-    int128: &P<Value>,
-    f_context: &mut FunctionContext,
-    vm: &VM
-) -> (P<Value>, P<Value>) {
+fn split_int128(int128: &P<Value>, f_context: &mut FunctionContext, vm: &VM) -> (P<Value>, P<Value>) {
     if f_context.get_value(int128.id()).unwrap().has_split() {
-        let vec = f_context
-            .get_value(int128.id())
-            .unwrap()
-            .get_split()
-            .as_ref()
-            .unwrap();
+        let vec = f_context.get_value(int128.id()).unwrap().get_split().as_ref().unwrap();
         (vec[0].clone(), vec[1].clone())
     } else {
         let arg_l = make_temporary(f_context, UINT64_TYPE.clone(), vm);
@@ -2232,12 +2149,7 @@ pub fn emit_mem(
 
 // Same as emit_mem except returns a memory location with only a base
 // NOTE: This code duplicates allot of code in emit_mem and emit_calculate_address
-fn emit_mem_base(
-    backend: &mut CodeGenerator,
-    pv: &P<Value>,
-    f_context: &mut FunctionContext,
-    vm: &VM
-) -> P<Value> {
+fn emit_mem_base(backend: &mut CodeGenerator, pv: &P<Value>, f_context: &mut FunctionContext, vm: &VM) -> P<Value> {
     match pv.v {
         Value_::Memory(ref mem) => {
             let base = match mem {
@@ -2528,12 +2440,7 @@ fn memory_location_shift(
 
                     if more_offset % (scale as i64) == 0 {
                         // temp = offset + more_offset/scale
-                        emit_add_u64(
-                            backend,
-                            &temp,
-                            &offset,
-                            (more_offset / (scale as i64)) as u64
-                        );
+                        emit_add_u64(backend, &temp, &offset, (more_offset / (scale as i64)) as u64);
                         new_scale = scale;
                     } else {
                         // temp = offset*scale + more_offset
@@ -2576,13 +2483,7 @@ fn memory_location_shift_scale(
 ) -> MemoryLocation {
     if match_value_int_imm(&more_offset) {
         let more_offset = value_imm_to_s64(&more_offset);
-        memory_location_shift(
-            backend,
-            mem,
-            more_offset * (new_scale as i64),
-            f_context,
-            vm
-        )
+        memory_location_shift(backend, mem, more_offset * (new_scale as i64), f_context, vm)
     } else {
         let mut new_scale = new_scale;
         match mem {
@@ -2596,8 +2497,7 @@ fn memory_location_shift_scale(
                     let offset = offset.as_ref().unwrap();
                     if match_value_int_imm(&offset) {
                         let temp = make_temporary(f_context, offset.ty.clone(), vm);
-                        let offset_scaled =
-                            (offset.extract_int_const().unwrap() as i64) * (scale as i64);
+                        let offset_scaled = (offset.extract_int_const().unwrap() as i64) * (scale as i64);
                         if offset_scaled % (new_scale as i64) == 0 {
                             emit_add_u64(
                                 backend,
@@ -2625,17 +2525,9 @@ fn memory_location_shift_scale(
                             // temp = offset * scale
                             emit_mul_u64(backend, &temp, &offset, scale);
 
-                            if new_scale.is_power_of_two()
-                                && is_valid_immediate_extension(log2(new_scale))
-                            {
+                            if new_scale.is_power_of_two() && is_valid_immediate_extension(log2(new_scale)) {
                                 // temp = (offset * scale) + more_offset << log2(new_scale)
-                                backend.emit_add_ext(
-                                    &temp,
-                                    &temp,
-                                    &more_offset,
-                                    signed,
-                                    log2(new_scale) as u8
-                                );
+                                backend.emit_add_ext(&temp, &temp, &more_offset, signed, log2(new_scale) as u8);
                             } else {
                                 // temp_more = more_offset * new_scale
                                 let temp_more = make_temporary(f_context, offset.ty.clone(), vm);
@@ -2734,8 +2626,7 @@ fn emit_move_value_to_value(
                     Value_::Constant(Constant::FuncRef(ref func)) => func.id(),
                     _ => unreachable!()
                 };
-                let mem =
-                    make_value_symbolic(vm.get_name_for_func(func_id), true, &ADDRESS_TYPE, vm);
+                let mem = make_value_symbolic(vm.get_name_for_func(func_id), true, &ADDRESS_TYPE, vm);
                 emit_calculate_address(backend, &dest, &mem, vm);
             } else if is_int_reg(&src) {
                 backend.emit_mov(dest, src);
@@ -2777,20 +2668,8 @@ fn emit_move_value_to_value(
     }
 }
 
-fn emit_load(
-    backend: &mut CodeGenerator,
-    dest: &P<Value>,
-    src: &P<Value>,
-    f_context: &mut FunctionContext,
-    vm: &VM
-) {
-    let src = emit_mem(
-        backend,
-        &src,
-        get_type_alignment(&dest.ty, vm),
-        f_context,
-        vm
-    );
+fn emit_load(backend: &mut CodeGenerator, dest: &P<Value>, src: &P<Value>, f_context: &mut FunctionContext, vm: &VM) {
+    let src = emit_mem(backend, &src, get_type_alignment(&dest.ty, vm), f_context, vm);
     if is_int_reg(dest) || is_fp_reg(dest) {
         backend.emit_ldr(&dest, &src, false);
     } else if is_int_ex_reg(dest) {
@@ -2801,20 +2680,8 @@ fn emit_load(
     }
 }
 
-fn emit_store(
-    backend: &mut CodeGenerator,
-    dest: &P<Value>,
-    src: &P<Value>,
-    f_context: &mut FunctionContext,
-    vm: &VM
-) {
-    let dest = emit_mem(
-        backend,
-        &dest,
-        get_type_alignment(&src.ty, vm),
-        f_context,
-        vm
-    );
+fn emit_store(backend: &mut CodeGenerator, dest: &P<Value>, src: &P<Value>, f_context: &mut FunctionContext, vm: &VM) {
+    let dest = emit_mem(backend, &dest, get_type_alignment(&src.ty, vm), f_context, vm);
     if is_int_reg(src) || is_fp_reg(src) {
         backend.emit_str(&dest, &src);
     } else if is_int_ex_reg(src) {
@@ -2916,10 +2783,7 @@ fn compute_argument_locations(
     for i in 0..arg_types.len() {
         let i = i as usize;
         let t = if reference[i] {
-            P(MuType::new(
-                new_internal_id(),
-                MuType_::IRef(arg_types[i].clone())
-            ))
+            P(MuType::new(new_internal_id(), MuType_::IRef(arg_types[i].clone())))
         } else {
             arg_types[i].clone()
         };
@@ -2928,44 +2792,28 @@ fn compute_argument_locations(
         match t.v {
             Hybrid(_) => panic!("hybrid argument not supported"),
 
-            Vector(_, _) => unimplemented!(),
+            Vector(..) => unimplemented!(),
             Float | Double => {
                 if nsrn < 8 {
-                    locations.push(get_alias_for_length(
-                        fpr_regs[nsrn].id(),
-                        get_bit_size(&t, vm)
-                    ));
+                    locations.push(get_alias_for_length(fpr_regs[nsrn].id(), get_bit_size(&t, vm)));
                     nsrn += 1;
                 } else {
                     nsrn = 8;
-                    locations.push(make_value_base_offset(
-                        &stack,
-                        offset + (nsaa as i64),
-                        &t,
-                        vm
-                    ));
+                    locations.push(make_value_base_offset(&stack, offset + (nsaa as i64), &t, vm));
                     nsaa += size;
                 }
             }
-            Struct(_) | Array(_, _) => {
+            Struct(_) | Array(..) => {
                 let hfa_n = hfa_length(&t);
                 if hfa_n > 0 {
                     if nsrn + hfa_n <= 8 {
                         // Note: the argument will occupy succesiv registers
                         // (one for each element)
-                        locations.push(get_alias_for_length(
-                            fpr_regs[nsrn].id(),
-                            get_bit_size(&t, vm) / hfa_n
-                        ));
+                        locations.push(get_alias_for_length(fpr_regs[nsrn].id(), get_bit_size(&t, vm) / hfa_n));
                         nsrn += hfa_n;
                     } else {
                         nsrn = 8;
-                        locations.push(make_value_base_offset(
-                            &stack,
-                            offset + (nsaa as i64),
-                            &t,
-                            vm
-                        ));
+                        locations.push(make_value_base_offset(&stack, offset + (nsaa as i64), &t, vm));
                         nsaa += size;
                     }
                 } else {
@@ -2979,20 +2827,11 @@ fn compute_argument_locations(
                         // or even floating points in a GPR)
                         locations.push(gpr_regs[ngrn].clone());
                         // How many GPRS are taken up by t
-                        ngrn += if size % 8 != 0 {
-                            size / 8 + 1
-                        } else {
-                            size / 8
-                        };
+                        ngrn += if size % 8 != 0 { size / 8 + 1 } else { size / 8 };
                     } else {
                         ngrn = 8;
                         nsaa = align_up(nsaa, align_up(align, 8));
-                        locations.push(make_value_base_offset(
-                            &stack,
-                            offset + (nsaa as i64) as i64,
-                            &t,
-                            vm
-                        ));
+                        locations.push(make_value_base_offset(&stack, offset + (nsaa as i64) as i64, &t, vm));
                         nsaa += size;
                     }
                 }
@@ -3004,19 +2843,11 @@ fn compute_argument_locations(
             _ => {
                 if size <= 8 {
                     if ngrn < 8 {
-                        locations.push(get_alias_for_length(
-                            gpr_regs[ngrn].id(),
-                            get_bit_size(&t, vm)
-                        ));
+                        locations.push(get_alias_for_length(gpr_regs[ngrn].id(), get_bit_size(&t, vm)));
                         ngrn += 1;
                     } else {
                         nsaa = align_up(nsaa, align_up(align, 8));
-                        locations.push(make_value_base_offset(
-                            &stack,
-                            offset + (nsaa as i64) as i64,
-                            &t,
-                            vm
-                        ));
+                        locations.push(make_value_base_offset(&stack, offset + (nsaa as i64) as i64, &t, vm));
                         nsaa += size;
                     }
                 } else if size == 16 {
@@ -3028,12 +2859,7 @@ fn compute_argument_locations(
                     } else {
                         ngrn = 8;
                         nsaa = align_up(nsaa, 16);
-                        locations.push(make_value_base_offset(
-                            &stack,
-                            offset + (nsaa as i64) as i64,
-                            &t,
-                            vm
-                        ));
+                        locations.push(make_value_base_offset(&stack, offset + (nsaa as i64) as i64, &t, vm));
                         nsaa += 16;
                     }
                 } else {

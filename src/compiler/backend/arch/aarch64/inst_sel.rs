@@ -16,35 +16,35 @@
 #![warn(unreachable_code)]
 #![warn(dead_code)]
 
-use ast::ir::*;
-use ast::ptr::*;
 use ast::inst::*;
+use ast::ir::*;
 use ast::op;
 use ast::op::*;
+use ast::ptr::*;
 use ast::types::*;
+use runtime::mm;
 use utils::POINTER_SIZE;
 use utils::WORD_SIZE;
 use vm::VM;
-use runtime::mm;
 
+use compiler::CompilerPass;
+use compiler::PROLOGUE_BLOCK_NAME;
+use compiler::backend::BackendType;
 use runtime::ValueLocation;
-use runtime::thread;
 use runtime::entrypoints;
 use runtime::entrypoints::RuntimeEntrypoint;
-use compiler::CompilerPass;
-use compiler::backend::BackendType;
-use compiler::PROLOGUE_BLOCK_NAME;
+use runtime::thread;
 
 use compiler::backend::aarch64::*;
 use compiler::backend::make_block_name;
-use compiler::machine_code::CompiledFunction;
 use compiler::frame::Frame;
+use compiler::machine_code::CompiledFunction;
 
+use num::integer::lcm;
+use std::any::Any;
 use std::collections::HashMap;
 use std::collections::LinkedList;
 use std::mem;
-use std::any::Any;
-use num::integer::lcm;
 
 pub struct InstructionSelection {
     name: &'static str,
@@ -163,8 +163,7 @@ impl<'a> InstructionSelection {
                             let cmpop = self.emit_cmp_res(cond, cond_box, f_content, f_context, vm);
 
                             if use_cbnz {
-                                self.backend
-                                    .emit_cbnz(tmp_cond.as_ref().unwrap(), branch_target);
+                                self.backend.emit_cbnz(tmp_cond.as_ref().unwrap(), branch_target);
                             } else {
                                 let cond = get_condition_codes(cmpop);
 
@@ -176,10 +175,7 @@ impl<'a> InstructionSelection {
                                     self.backend.emit_b_cond(cond[0], branch_target.clone());
                                     if cond.len() == 2 {
                                         self.finish_block();
-                                        self.start_block(make_block_name(
-                                            &node.name(),
-                                            "second_condition"
-                                        ));
+                                        self.start_block(make_block_name(&node.name(), "second_condition"));
                                         self.backend.emit_b_cond(cond[1], branch_target);
                                     }
                                 }
@@ -230,12 +226,10 @@ impl<'a> InstructionSelection {
                             } else if cmpop == FTRUE {
                                 self.backend.emit_mov(&tmp_res, &tmp_true);
                             } else {
-                                self.backend
-                                    .emit_csel(&tmp_res, &tmp_true, &tmp_false, cond[0]);
+                                self.backend.emit_csel(&tmp_res, &tmp_true, &tmp_false, cond[0]);
 
                                 if cond.len() == 2 {
-                                    self.backend
-                                        .emit_csel(&tmp_res, &tmp_true, &tmp_res, cond[1]);
+                                    self.backend.emit_csel(&tmp_res, &tmp_true, &tmp_res, cond[1]);
                                 }
                             }
                         } else if self.match_fpreg(true_val) {
@@ -244,12 +238,10 @@ impl<'a> InstructionSelection {
                             } else if cmpop == FTRUE {
                                 self.backend.emit_fmov(&tmp_res, &tmp_true);
                             } else {
-                                self.backend
-                                    .emit_fcsel(&tmp_res, &tmp_true, &tmp_false, cond[0]);
+                                self.backend.emit_fcsel(&tmp_res, &tmp_true, &tmp_false, cond[0]);
 
                                 if cond.len() == 2 {
-                                    self.backend
-                                        .emit_fcsel(&tmp_res, &tmp_true, &tmp_res, cond[1]);
+                                    self.backend.emit_fcsel(&tmp_res, &tmp_true, &tmp_res, cond[1]);
                                 }
                             }
                         } else {
@@ -295,12 +287,8 @@ impl<'a> InstructionSelection {
                                 // aarch64 flag insted they are computed as
                                 // a condition OR NOT another condition.
                                 if cond.len() == 2 {
-                                    self.backend.emit_csinc(
-                                        &tmp_res,
-                                        &tmp_res,
-                                        &WZR,
-                                        invert_condition_code(cond[1])
-                                    );
+                                    self.backend
+                                        .emit_csinc(&tmp_res, &tmp_res, &WZR, invert_condition_code(cond[1]));
                                 }
                             }
                         }
@@ -355,11 +343,9 @@ impl<'a> InstructionSelection {
                                 if emit_imm {
                                     let imm_shift = imm_val > 4096;
                                     let imm_op2 = if imm_shift { imm_val >> 12 } else { imm_val };
-                                    self.backend
-                                        .emit_cmp_imm(&tmp_cond, imm_op2 as u16, imm_shift);
+                                    self.backend.emit_cmp_imm(&tmp_cond, imm_op2 as u16, imm_shift);
                                 } else {
-                                    let tmp_case_op =
-                                        self.emit_ireg(case_op, f_content, f_context, vm);
+                                    let tmp_case_op = self.emit_ireg(case_op, f_content, f_context, vm);
                                     emit_zext(self.backend.as_mut(), &tmp_case_op);
                                     self.backend.emit_cmp(&tmp_cond, &tmp_case_op);
                                 }
@@ -404,10 +390,7 @@ impl<'a> InstructionSelection {
                         );
                     }
 
-                    Instruction_::Call {
-                        ref data,
-                        ref resume
-                    } => {
+                    Instruction_::Call { ref data, ref resume } => {
                         trace!("instsel on CALL");
 
                         self.emit_mu_call(
@@ -447,21 +430,10 @@ impl<'a> InstructionSelection {
                         self.emit_c_call_ir(inst, data, None, node, f_content, f_context, vm);
                     }
 
-                    Instruction_::CCall {
-                        ref data,
-                        ref resume
-                    } => {
+                    Instruction_::CCall { ref data, ref resume } => {
                         trace!("instsel on CCALL");
 
-                        self.emit_c_call_ir(
-                            inst,
-                            data,
-                            Some(resume),
-                            node,
-                            f_content,
-                            f_context,
-                            vm
-                        );
+                        self.emit_c_call_ir(inst, data, Some(resume), node, f_content, f_context, vm);
                     }
 
                     Instruction_::Return(ref vals) => {
@@ -480,63 +452,33 @@ impl<'a> InstructionSelection {
                             // Do nothing
                         } else if n == 1 {
                             let ret_loc = self.compute_return_locations(&ret_type, &xr_value, &vm);
-                            let ret_val =
-                                self.emit_node_value(&ops[vals[0]], f_content, f_context, vm);
+                            let ret_val = self.emit_node_value(&ops[vals[0]], f_content, f_context, vm);
 
                             if is_machine_reg(&ret_loc) && is_int_ex_reg(&ret_val) {
                                 let (val_l, val_h) = split_int128(&ret_val, f_context, vm);
                                 let ret_loc_h = get_register_from_id(ret_loc.id() + 2);
                                 // nothing special needs to be done
-                                emit_move_value_to_value(
-                                    self.backend.as_mut(),
-                                    &ret_loc,
-                                    &val_l,
-                                    f_context,
-                                    vm
-                                );
-                                emit_move_value_to_value(
-                                    self.backend.as_mut(),
-                                    &ret_loc_h,
-                                    &val_h,
-                                    f_context,
-                                    vm
-                                );
+                                emit_move_value_to_value(self.backend.as_mut(), &ret_loc, &val_l, f_context, vm);
+                                emit_move_value_to_value(self.backend.as_mut(), &ret_loc_h, &val_h, f_context, vm);
                             } else {
-                                emit_move_value_to_value(
-                                    self.backend.as_mut(),
-                                    &ret_loc,
-                                    &ret_val,
-                                    f_context,
-                                    vm
-                                );
+                                emit_move_value_to_value(self.backend.as_mut(), &ret_loc, &ret_val, f_context, vm);
                             }
                         } else {
                             let ret_loc = self.compute_return_locations(&ret_type, &xr_value, &vm);
 
                             let mut i = 0;
                             for ret_index in vals {
-                                let ret_val = self.emit_node_value(
-                                    &ops[*ret_index],
-                                    f_content,
-                                    f_context,
-                                    vm
-                                );
+                                let ret_val = self.emit_node_value(&ops[*ret_index], f_content, f_context, vm);
                                 let ref ty = ret_val.ty;
                                 let offset = self.get_field_offset(&ret_type, i, &vm);
 
                                 match ty.v {
-                                    MuType_::Vector(_, _) => unimplemented!(),
+                                    MuType_::Vector(..) => unimplemented!(),
                                     MuType_::Void => panic!("Unexpected void"),
-                                    MuType_::Struct(_) | MuType_::Array(_, _) => unimplemented!(),
+                                    MuType_::Struct(_) | MuType_::Array(..) => unimplemented!(),
                                     MuType_::Hybrid(_) => panic!("Can't return a hybrid"),
                                     // Integral, pointer or floating point type
-                                    _ => self.insert_bytes(
-                                        &ret_loc,
-                                        &ret_val,
-                                        offset as i64,
-                                        f_context,
-                                        vm
-                                    )
+                                    _ => self.insert_bytes(&ret_loc, &ret_val, offset as i64, f_context, vm)
                                 }
 
                                 i += 1;
@@ -594,22 +536,14 @@ impl<'a> InstructionSelection {
                             op::ConvOp::TRUNC => {
                                 // src is in one register
                                 if self.match_ireg(op) {
-                                    self.backend
-                                        .emit_mov(&tmp_res, &cast_value(&tmp_op, &to_ty));
+                                    self.backend.emit_mov(&tmp_res, &cast_value(&tmp_op, &to_ty));
                                 } else if self.match_ireg_ex(op) {
                                     // Move the lower word
                                     if from_ty_size != to_ty_size {
-                                        let (op_l, _) =
-                                            self.emit_ireg_ex(op, f_content, f_context, vm);
+                                        let (op_l, _) = self.emit_ireg_ex(op, f_content, f_context, vm);
                                         self.backend.emit_mov(&tmp_res, &cast_value(&op_l, &to_ty));
                                     } else {
-                                        self.emit_move_node_to_value(
-                                            &tmp_res,
-                                            op,
-                                            f_content,
-                                            f_context,
-                                            vm
-                                        );
+                                        self.emit_move_node_to_value(&tmp_res, op, f_content, f_context, vm);
                                     }
                                 } else {
                                     panic!("unexpected op (expect ireg): {}", op);
@@ -641,13 +575,7 @@ impl<'a> InstructionSelection {
                                     }
                                 } else {
                                     // Trivial, just do a move
-                                    emit_move_value_to_value(
-                                        self.backend.as_mut(),
-                                        &tmp_res,
-                                        &tmp_op,
-                                        f_context,
-                                        vm
-                                    );
+                                    emit_move_value_to_value(self.backend.as_mut(), &tmp_res, &tmp_op, f_context, vm);
                                 }
                             }
 
@@ -677,13 +605,7 @@ impl<'a> InstructionSelection {
                                     }
                                 } else {
                                     // Trivial, just do a move
-                                    emit_move_value_to_value(
-                                        self.backend.as_mut(),
-                                        &tmp_res,
-                                        &tmp_op,
-                                        f_context,
-                                        vm
-                                    );
+                                    emit_move_value_to_value(self.backend.as_mut(), &tmp_res, &tmp_op, f_context, vm);
                                 }
                             }
                             op::ConvOp::REFCAST | op::ConvOp::PTRCAST => {
@@ -826,18 +748,13 @@ impl<'a> InstructionSelection {
                                     // The size of the aarch64 register
                                     let to_ty_reg_size = check_op_len(&tmp_res.ty);
                                     if to_ty_size != to_ty_reg_size {
-                                        let blk_positive =
-                                            make_block_name(&node.name(), "positive");
-                                        let blk_negative =
-                                            make_block_name(&node.name(), "negative");
+                                        let blk_positive = make_block_name(&node.name(), "positive");
+                                        let blk_negative = make_block_name(&node.name(), "negative");
                                         let blk_end = make_block_name(&node.name(), "end");
                                         let tmp = make_temporary(f_context, to_ty.clone(), vm);
 
-                                        self.backend.emit_tbnz(
-                                            &tmp_res,
-                                            (to_ty_size - 1) as u8,
-                                            blk_negative.clone()
-                                        );
+                                        self.backend
+                                            .emit_tbnz(&tmp_res, (to_ty_size - 1) as u8, blk_negative.clone());
                                         self.finish_block();
 
                                         self.start_block(blk_positive.clone());
@@ -847,11 +764,9 @@ impl<'a> InstructionSelection {
                                             // overflow
                                             self.backend.emit_tst_imm(
                                                 &tmp_res,
-                                                bits_ones(to_ty_reg_size - to_ty_size)
-                                                    << to_ty_size
+                                                bits_ones(to_ty_reg_size - to_ty_size) << to_ty_size
                                             );
-                                            self.backend
-                                                .emit_mov_imm(&tmp, bits_ones(to_ty_size - 1));
+                                            self.backend.emit_mov_imm(&tmp, bits_ones(to_ty_size - 1));
 
                                             // if the above test fails (i.e. results in zero)
                                             // then set temp_res to tmp
@@ -868,8 +783,7 @@ impl<'a> InstructionSelection {
                                             // an overflow
                                             self.backend.emit_tst_imm(
                                                 &tmp_res,
-                                                bits_ones(to_ty_reg_size - to_ty_size)
-                                                    << to_ty_size
+                                                bits_ones(to_ty_reg_size - to_ty_size) << to_ty_size
                                             );
 
                                             // Set just the sign bit (this is smallest
@@ -900,39 +814,29 @@ impl<'a> InstructionSelection {
                         let ref ops = inst.ops;
                         let ref loc_op = ops[mem_loc];
 
-                        let resolved_loc =
-                            self.emit_node_addr_to_value(loc_op, f_content, f_context, vm);
+                        let resolved_loc = self.emit_node_addr_to_value(loc_op, f_content, f_context, vm);
                         let res = self.get_result_value(node, 0);
 
                         if self.match_ireg(node) || self.match_fpreg(node) {
                             // Whether to use a load acquire
                             let use_acquire = match order {
                                 MemoryOrder::Relaxed | MemoryOrder::NotAtomic => false,
-                                MemoryOrder::Consume
-                                | MemoryOrder::Acquire
-                                | MemoryOrder::SeqCst => true,
+                                MemoryOrder::Consume | MemoryOrder::Acquire | MemoryOrder::SeqCst => true,
                                 _ => panic!("didnt expect order {:?} with load inst", order)
                             };
 
                             if use_acquire {
                                 // Can only have a base for a LDAR
-                                let temp_loc = emit_mem_base(
-                                    self.backend.as_mut(),
-                                    &resolved_loc,
-                                    f_context,
-                                    vm
-                                );
+                                let temp_loc = emit_mem_base(self.backend.as_mut(), &resolved_loc, f_context, vm);
                                 match res.ty.v {
                                     // Have to load a temporary GPR first
                                     MuType_::Float => {
-                                        let temp =
-                                            make_temporary(f_context, UINT32_TYPE.clone(), vm);
+                                        let temp = make_temporary(f_context, UINT32_TYPE.clone(), vm);
                                         self.backend.emit_ldar(&temp, &temp_loc);
                                         self.backend.emit_fmov(&res, &temp);
                                     }
                                     MuType_::Double => {
-                                        let temp =
-                                            make_temporary(f_context, UINT64_TYPE.clone(), vm);
+                                        let temp = make_temporary(f_context, UINT64_TYPE.clone(), vm);
                                         self.backend.emit_ldar(&temp, &temp_loc);
                                         self.backend.emit_fmov(&res, &temp);
                                     }
@@ -971,38 +875,22 @@ impl<'a> InstructionSelection {
                                     // Whether to use a load exclusive acquire
                                     let use_acquire = match order {
                                         MemoryOrder::Relaxed => false,
-                                        MemoryOrder::Consume
-                                        | MemoryOrder::Acquire
-                                        | MemoryOrder::SeqCst => true,
-                                        _ => panic!(
-                                            "didnt expect order {:?} with atomic load inst",
-                                            order
-                                        )
+                                        MemoryOrder::Consume | MemoryOrder::Acquire | MemoryOrder::SeqCst => true,
+                                        _ => panic!("didnt expect order {:?} with atomic load inst", order)
                                     };
                                     // Whether to use a store exclusive release
                                     let use_release = match order {
-                                        MemoryOrder::Relaxed
-                                        | MemoryOrder::Consume
-                                        | MemoryOrder::Acquire => false,
+                                        MemoryOrder::Relaxed | MemoryOrder::Consume | MemoryOrder::Acquire => false,
                                         MemoryOrder::SeqCst => true,
-                                        _ => panic!(
-                                            "didnt expect order {:?} with atomic load inst",
-                                            order
-                                        )
+                                        _ => panic!("didnt expect order {:?} with atomic load inst", order)
                                     };
 
                                     // Exclusive loads/stores, only supports a base address
-                                    let temp_loc = emit_mem_base(
-                                        self.backend.as_mut(),
-                                        &resolved_loc,
-                                        f_context,
-                                        vm
-                                    );
+                                    let temp_loc = emit_mem_base(self.backend.as_mut(), &resolved_loc, f_context, vm);
 
                                     self.finish_block();
 
-                                    let blk_load_start =
-                                        make_block_name(&node.name(), "load_start");
+                                    let blk_load_start = make_block_name(&node.name(), "load_start");
 
                                     // load_start:
                                     self.start_block(blk_load_start.clone());
@@ -1018,12 +906,7 @@ impl<'a> InstructionSelection {
 
                                     // Store the value we just read back to memory
                                     if use_release {
-                                        self.backend.emit_stlxp(
-                                            &temp_loc,
-                                            &success,
-                                            &res_l,
-                                            &res_h
-                                        );
+                                        self.backend.emit_stlxp(&temp_loc, &success, &res_l, &res_h);
                                     } else {
                                         self.backend.emit_stxp(&temp_loc, &success, &res_l, &res_h);
                                     }
@@ -1031,10 +914,7 @@ impl<'a> InstructionSelection {
                                     // If the store failed, then branch back to 'load_start:'
                                     self.backend.emit_cbnz(&success, blk_load_start.clone());
                                     self.finish_block();
-                                    self.start_block(make_block_name(
-                                        &node.name(),
-                                        "load_finished"
-                                    ));
+                                    self.start_block(make_block_name(&node.name(), "load_finished"));
                                 }
                             }
                         } else {
@@ -1043,18 +923,14 @@ impl<'a> InstructionSelection {
                     }
 
                     Instruction_::Store {
-                        order,
-                        mem_loc,
-                        value,
-                        ..
+                        order, mem_loc, value, ..
                     } => {
                         trace!("instsel on STORE");
                         let ref ops = inst.ops;
                         let ref loc_op = ops[mem_loc];
                         let ref val_op = ops[value];
 
-                        let resolved_loc =
-                            self.emit_node_addr_to_value(loc_op, f_content, f_context, vm);
+                        let resolved_loc = self.emit_node_addr_to_value(loc_op, f_content, f_context, vm);
 
                         if self.match_ireg(val_op) || self.match_fpreg(val_op) {
                             // Whether to use a store release or not
@@ -1068,24 +944,17 @@ impl<'a> InstructionSelection {
 
                             if use_release {
                                 // Can only have a base for a STLR
-                                let temp_loc = emit_mem_base(
-                                    self.backend.as_mut(),
-                                    &resolved_loc,
-                                    f_context,
-                                    vm
-                                );
+                                let temp_loc = emit_mem_base(self.backend.as_mut(), &resolved_loc, f_context, vm);
 
                                 match val.ty.v {
                                     // Have to store a temporary GPR
                                     MuType_::Float => {
-                                        let temp =
-                                            make_temporary(f_context, UINT32_TYPE.clone(), vm);
+                                        let temp = make_temporary(f_context, UINT32_TYPE.clone(), vm);
                                         self.backend.emit_fmov(&temp, &val);
                                         self.backend.emit_stlr(&temp_loc, &temp);
                                     }
                                     MuType_::Double => {
-                                        let temp =
-                                            make_temporary(f_context, UINT64_TYPE.clone(), vm);
+                                        let temp = make_temporary(f_context, UINT64_TYPE.clone(), vm);
                                         self.backend.emit_fmov(&temp, &val);
                                         self.backend.emit_stlr(&temp_loc, &temp);
                                     }
@@ -1103,18 +972,11 @@ impl<'a> InstructionSelection {
                                 self.backend.emit_str(&temp_loc, &val);
                             }
                         } else if self.match_ireg_ex(val_op) {
-                            let (val_l, val_h) =
-                                self.emit_ireg_ex(val_op, f_content, f_context, vm);
+                            let (val_l, val_h) = self.emit_ireg_ex(val_op, f_content, f_context, vm);
 
                             match order {
                                 MemoryOrder::NotAtomic => {
-                                    let temp_loc = emit_mem(
-                                        self.backend.as_mut(),
-                                        &resolved_loc,
-                                        16,
-                                        f_context,
-                                        vm
-                                    );
+                                    let temp_loc = emit_mem(self.backend.as_mut(), &resolved_loc, 16, f_context, vm);
                                     self.backend.emit_stp(&temp_loc, &val_l, &val_h);
                                 }
 
@@ -1126,33 +988,21 @@ impl<'a> InstructionSelection {
                                     let use_acquire = match order {
                                         MemoryOrder::Relaxed | MemoryOrder::Release => false,
                                         MemoryOrder::SeqCst => true,
-                                        _ => panic!(
-                                            "didnt expect order {:?} with atomic store inst",
-                                            order
-                                        )
+                                        _ => panic!("didnt expect order {:?} with atomic store inst", order)
                                     };
                                     // Whether to use a store exclusive release
                                     let use_release = match order {
                                         MemoryOrder::Relaxed => false,
                                         MemoryOrder::Release | MemoryOrder::SeqCst => true,
-                                        _ => panic!(
-                                            "didnt expect order {:?} with atomic store inst",
-                                            order
-                                        )
+                                        _ => panic!("didnt expect order {:?} with atomic store inst", order)
                                     };
 
                                     // Exclusive loads/stores, only supports a base address
-                                    let temp_loc = emit_mem_base(
-                                        self.backend.as_mut(),
-                                        &resolved_loc,
-                                        f_context,
-                                        vm
-                                    );
+                                    let temp_loc = emit_mem_base(self.backend.as_mut(), &resolved_loc, f_context, vm);
 
                                     self.finish_block();
 
-                                    let blk_store_start =
-                                        make_block_name(&node.name(), "store_start");
+                                    let blk_store_start = make_block_name(&node.name(), "store_start");
 
                                     // store_start:
                                     self.start_block(blk_store_start.clone());
@@ -1168,12 +1018,7 @@ impl<'a> InstructionSelection {
 
                                     // Store the value
                                     if use_release {
-                                        self.backend.emit_stlxp(
-                                            &temp_loc,
-                                            &success,
-                                            &val_l,
-                                            &val_h
-                                        );
+                                        self.backend.emit_stlxp(&temp_loc, &success, &val_l, &val_h);
                                     } else {
                                         self.backend.emit_stxp(&temp_loc, &success, &val_l, &val_h);
                                     }
@@ -1181,10 +1026,7 @@ impl<'a> InstructionSelection {
                                     // If the store failed, then branch back to 'store_start:'
                                     self.backend.emit_cbnz(&success, blk_store_start.clone());
                                     self.finish_block();
-                                    self.start_block(make_block_name(
-                                        &node.name(),
-                                        "store_finished"
-                                    ))
+                                    self.start_block(make_block_name(&node.name(), "store_finished"))
                                 }
                             }
                         } else {
@@ -1206,14 +1048,9 @@ impl<'a> InstructionSelection {
                         let use_acquire = match fail_order {
                             MemoryOrder::Acquire | MemoryOrder::SeqCst => true,
                             MemoryOrder::Relaxed => match success_order {
-                                MemoryOrder::Acquire
-                                | MemoryOrder::AcqRel
-                                | MemoryOrder::SeqCst => true,
+                                MemoryOrder::Acquire | MemoryOrder::AcqRel | MemoryOrder::SeqCst => true,
                                 MemoryOrder::Relaxed | MemoryOrder::Release => false,
-                                _ => panic!(
-                                    "didnt expect success order {:?} for cmpxchg",
-                                    success_order
-                                )
+                                _ => panic!("didnt expect success order {:?} for cmpxchg", success_order)
                             },
                             _ => panic!("didnt expect fail order {:?} for cmpxchg", fail_order)
                         };
@@ -1224,30 +1061,20 @@ impl<'a> InstructionSelection {
                                 | MemoryOrder::AcqRel
                                 | MemoryOrder::SeqCst => true,
                                 MemoryOrder::Acquire => false,
-                                _ => panic!(
-                                    "didnt expect success order {:?} for cmpxchg",
-                                    success_order
-                                )
+                                _ => panic!("didnt expect success order {:?} for cmpxchg", success_order)
                             },
                             MemoryOrder::SeqCst => true,
                             MemoryOrder::Relaxed => match success_order {
-                                MemoryOrder::Release
-                                | MemoryOrder::AcqRel
-                                | MemoryOrder::SeqCst => true,
+                                MemoryOrder::Release | MemoryOrder::AcqRel | MemoryOrder::SeqCst => true,
                                 MemoryOrder::Relaxed | MemoryOrder::Acquire => false,
-                                _ => panic!(
-                                    "didnt expect success order {:?} for cmpxchg",
-                                    success_order
-                                )
+                                _ => panic!("didnt expect success order {:?} for cmpxchg", success_order)
                             },
                             _ => panic!("didnt expect fail order {:?} for cmpxchg", fail_order)
                         };
 
                         let ref ops = inst.ops;
-                        let loc =
-                            self.emit_node_addr_to_value(&ops[mem_loc], f_content, f_context, vm);
-                        let expected =
-                            self.emit_reg(&ops[expected_value], f_content, f_context, vm);
+                        let loc = self.emit_node_addr_to_value(&ops[mem_loc], f_content, f_context, vm);
+                        let expected = self.emit_reg(&ops[expected_value], f_content, f_context, vm);
                         let desired = self.emit_reg(&ops[desired_value], f_content, f_context, vm);
 
                         let res_value = self.get_result_value(node, 0);
@@ -1255,8 +1082,7 @@ impl<'a> InstructionSelection {
 
                         let blk_cmpxchg_start = make_block_name(&node.name(), "cmpxchg_start");
                         let blk_cmpxchg_failed = make_block_name(&node.name(), "cmpxchg_failed");
-                        let blk_cmpxchg_succeded =
-                            make_block_name(&node.name(), "cmpxchg_succeded");
+                        let blk_cmpxchg_succeded = make_block_name(&node.name(), "cmpxchg_succeded");
 
                         self.finish_block();
 
@@ -1341,8 +1167,7 @@ impl<'a> InstructionSelection {
 
                         if !is_weak {
                             // Store failed, try again
-                            self.backend
-                                .emit_cbnz(&res_success, blk_cmpxchg_start.clone());
+                            self.backend.emit_cbnz(&res_success, blk_cmpxchg_start.clone());
                         }
 
                         self.backend.emit_b(blk_cmpxchg_succeded.clone());
@@ -1380,9 +1205,7 @@ impl<'a> InstructionSelection {
 
                         // Whether to emit a load fence or a normal one
                         let use_load = match order {
-                            MemoryOrder::Release | MemoryOrder::SeqCst | MemoryOrder::AcqRel => {
-                                false
-                            }
+                            MemoryOrder::Release | MemoryOrder::SeqCst | MemoryOrder::AcqRel => false,
                             MemoryOrder::Acquire => true,
                             _ => panic!("didnt expect order {:?} with load inst", order)
                         };
@@ -1439,8 +1262,7 @@ impl<'a> InstructionSelection {
                             _ => panic!("expected funcref")
                         };
 
-                        let (_, _, stack_arg_size) =
-                            compute_argument_locations(&sig.arg_tys, &SP, 0, false, &vm);
+                        let (_, _, stack_arg_size) = compute_argument_locations(&sig.arg_tys, &SP, 0, false, &vm);
 
                         self.emit_runtime_entry(
                             &entrypoints::NEW_STACK,
@@ -1454,14 +1276,7 @@ impl<'a> InstructionSelection {
                     Instruction_::KillStack(op) => {
                         trace!("instsel on KILL_STACK");
                         let op = self.emit_ireg(&inst.ops[op], f_content, f_context, vm);
-                        self.emit_runtime_entry(
-                            &entrypoints::KILL_STACK,
-                            vec![op],
-                            None,
-                            Some(node),
-                            f_context,
-                            vm
-                        );
+                        self.emit_runtime_entry(&entrypoints::KILL_STACK, vec![op], None, Some(node), f_context, vm);
                     }
                     Instruction_::CurrentStack => {
                         trace!("instsel on CURRENT_STACK");
@@ -1573,15 +1388,7 @@ impl<'a> InstructionSelection {
                         // get allocator
                         let tmp_allocator = self.emit_get_allocator(f_context, vm);
                         // allocate and init
-                        self.emit_alloc_const_size(
-                            &tmp_allocator,
-                            size,
-                            ty_align,
-                            node,
-                            &ty_info,
-                            f_context,
-                            vm
-                        );
+                        self.emit_alloc_const_size(&tmp_allocator, size, ty_align, node, &ty_info, f_context, vm);
                     }
 
                     Instruction_::NewHybrid(ref ty, var_len) => {
@@ -1593,9 +1400,7 @@ impl<'a> InstructionSelection {
                         let fix_part_size = ty_info.size;
                         let var_ty_size = match ty_info.elem_size {
                             Some(sz) => sz,
-                            None => {
-                                panic!("expect HYBRID type here with elem_size, found {}", ty_info)
-                            }
+                            None => panic!("expect HYBRID type here with elem_size, found {}", ty_info)
                         };
 
                         let ref ops = inst.ops;
@@ -1604,9 +1409,8 @@ impl<'a> InstructionSelection {
                         // size is known at compile time
                         if match_node_int_imm(op_var_len) {
                             let const_var_len = op_var_len.as_value().extract_int_const().unwrap();
-                            let const_size = mm::check_hybrid_size(
-                                fix_part_size + var_ty_size * (const_var_len as usize)
-                            );
+                            let const_size =
+                                mm::check_hybrid_size(fix_part_size + var_ty_size * (const_var_len as usize));
                             self.emit_alloc_const_size(
                                 &tmp_allocator,
                                 const_size,
@@ -1656,23 +1460,14 @@ impl<'a> InstructionSelection {
                         trace!("instsel on ALLOCA");
                         if cfg!(debug_assertions) {
                             match ty.v {
-                                MuType_::Hybrid(_) => {
-                                    panic!("cannot use ALLOCA for hybrid, use ALLOCAHYBRID instead")
-                                }
+                                MuType_::Hybrid(_) => panic!("cannot use ALLOCA for hybrid, use ALLOCAHYBRID instead"),
                                 _ => {}
                             }
                         }
 
                         let ty_info = vm.get_backend_type_info(ty.id());
                         let res = self.get_result_value(node, 0);
-                        self.emit_alloca_const(
-                            &res,
-                            ty_info.size,
-                            ty_info.alignment,
-                            f_context,
-                            vm,
-                            node
-                        );
+                        self.emit_alloca_const(&res, ty_info.size, ty_info.alignment, f_context, vm, node);
                     }
 
                     Instruction_::AllocAHybrid(ref ty, var_len) => {
@@ -1903,8 +1698,7 @@ impl<'a> InstructionSelection {
 
                             // isNaN(op) ? (op & 0xfff8000000000000) | 0x0000000000000008 : op
                             self.backend.emit_fmov(&tmp_res, &tmp_op);
-                            self.backend
-                                .emit_and_imm(&tmp1, &tmp_res, 0xfff8000000000000);
+                            self.backend.emit_and_imm(&tmp1, &tmp_res, 0xfff8000000000000);
                             self.backend.emit_orr_imm(&tmp1, &tmp1, 0x0000000000000008);
 
                             // Sets V flag if tmp_op is unordered with tmp_op (i.e. it is a NaN)
@@ -1925,8 +1719,7 @@ impl<'a> InstructionSelection {
                                 self.backend.as_mut(),
                                 &tmp_res,
                                 0x7FF0000000000001
-                                    | (((int_val & 0x8000000000000) << 12)
-                                        | (int_val & 0x7ffffffffffffu64) << 1)
+                                    | (((int_val & 0x8000000000000) << 12) | (int_val & 0x7ffffffffffffu64) << 1)
                             );
                         } else {
                             let tmp_op = self.emit_fpreg(op, f_content, f_context, vm);
@@ -1935,8 +1728,7 @@ impl<'a> InstructionSelection {
 
                             // res = 0x7FF0000000000001 | (((op & 0x8000000000000000) << 12)
                             //        | (opnd & 0x7ffffffffffffu64) << 1)
-                            self.backend
-                                .emit_and_imm(&tmp_res, &tmp_res, 0x8000000000000);
+                            self.backend.emit_and_imm(&tmp_res, &tmp_res, 0x8000000000000);
                             self.backend.emit_lsl_imm(&tmp_res, &tmp_op, 12);
 
                             self.backend.emit_bfi(&tmp_res, &tmp_op, 1, 51);
@@ -1955,8 +1747,7 @@ impl<'a> InstructionSelection {
                             emit_mov_u64(
                                 self.backend.as_mut(),
                                 &tmp_res,
-                                (0x7ff0000000000002u64 | ((tag & 0x3eu64) << 46)
-                                    | ((tag & 0x1) << 2))
+                                (0x7ff0000000000002u64 | ((tag & 0x3eu64) << 46) | ((tag & 0x1) << 2))
                             );
                         } else {
                             let tmp_op1 = self.emit_ireg(op1, f_content, f_context, vm);
@@ -2014,8 +1805,7 @@ impl<'a> InstructionSelection {
                         let tmp_op = self.emit_ireg(op, f_content, f_context, vm);
 
                         //res = (op)[52+1:1] | ((op & 0x8000000000000000) >> 12)
-                        self.backend
-                            .emit_and_imm(&tmp_res, &tmp_op, 0x8000000000000000);
+                        self.backend.emit_and_imm(&tmp_res, &tmp_op, 0x8000000000000000);
                         self.backend.emit_lsr_imm(&tmp_res, &tmp_op, 12);
                         self.backend.emit_bfxil(&tmp_res, &tmp_op, 1, 51);
                     }
@@ -2027,8 +1817,7 @@ impl<'a> InstructionSelection {
                         let tmp = make_temporary(f_context, UINT64_TYPE.clone(), vm);
 
                         // ((op & 0x8000000000000000) ASR 16) | (op & 0x7ffffffffff8)
-                        self.backend
-                            .emit_and_imm(&tmp_res, &tmp_op, 0x8000000000000000);
+                        self.backend.emit_and_imm(&tmp_res, &tmp_op, 0x8000000000000000);
                         self.backend.emit_asr_imm(&tmp_res, &tmp_res, 16);
                         self.backend.emit_and_imm(&tmp, &tmp_op, 0x7ffffffffff8);
                         self.backend.emit_orr(&tmp_res, &tmp_res, &tmp);
@@ -2145,17 +1934,13 @@ impl<'a> InstructionSelection {
                                 vm
                             );
 
-                            let arg_values =
-                                self.emit_arg_values(&args, ops, f_content, f_context, vm);
+                            let arg_values = self.emit_arg_values(&args, ops, f_content, f_context, vm);
 
                             // Pass the arguments, stack arguments are placed below the new_sp,
                             // register arguments are placed above it
                             self.emit_precall_convention(
                                 RegisterCallConvention::Memory(new_sp.clone()),
-                                StackCallConvention::Offset(
-                                    new_sp.clone(),
-                                    (2 * POINTER_SIZE) as isize
-                                ),
+                                StackCallConvention::Offset(new_sp.clone(), (2 * POINTER_SIZE) as isize),
                                 false,
                                 &arg_values,
                                 &arg_values.iter().map(|a| a.ty.clone()).collect::<Vec<_>>(),
@@ -2283,8 +2068,7 @@ impl<'a> InstructionSelection {
 
                     if output_status {
                         emit_zext(self.backend.as_mut(), &reg_op1);
-                        self.backend
-                            .emit_adds_imm(&res, &reg_op1, imm_op2 as u16, imm_shift);
+                        self.backend.emit_adds_imm(&res, &reg_op1, imm_op2 as u16, imm_shift);
 
                         if status.flag_v {
                             if n != 32 && n != 64 {
@@ -2296,13 +2080,11 @@ impl<'a> InstructionSelection {
                                 if !get_bit(imm_val, n - 1) {
                                     // tmp_status[n-1] = 1 iff res and op1 have different signs
                                     //      and op1 has the same sign as op2 (which is 0)
-                                    self.backend
-                                        .emit_bic(&tmp_status_v, &tmp_status_v, &reg_op1);
+                                    self.backend.emit_bic(&tmp_status_v, &tmp_status_v, &reg_op1);
                                 } else {
                                     // tmp_status[n-1] = 1 iff res and op1 have different signs
                                     //      and op1 has the same sign as op2 (which is 1)
-                                    self.backend
-                                        .emit_and(&tmp_status_v, &tmp_status_v, &reg_op1);
+                                    self.backend.emit_and(&tmp_status_v, &tmp_status_v, &reg_op1);
                                 }
 
                                 // Check the sign bit of tmp_status (i.e. tmp_status[n-1])
@@ -2322,8 +2104,7 @@ impl<'a> InstructionSelection {
                             }
                         }
                     } else {
-                        self.backend
-                            .emit_add_imm(&res, &reg_op1, imm_op2 as u16, imm_shift);
+                        self.backend.emit_add_imm(&res, &reg_op1, imm_op2 as u16, imm_shift);
                     }
                 } else if self.match_ireg(&ops[op1]) && self.match_ireg(&ops[op2]) {
                     trace!("emit add-ireg-ireg");
@@ -2335,8 +2116,7 @@ impl<'a> InstructionSelection {
                         emit_zext(self.backend.as_mut(), &reg_op1);
                         if n == 8 || n == 16 || n == 32 || n == 64 {
                             // Emit an adds that zero extends op2
-                            self.backend
-                                .emit_adds_ext(&res, &reg_op1, &reg_op2, false, 0);
+                            self.backend.emit_adds_ext(&res, &reg_op1, &reg_op2, false, 0);
                         } else {
                             // adds_ext dosn't support extending other sizes
                             emit_zext(self.backend.as_mut(), &reg_op2);
@@ -2396,8 +2176,7 @@ impl<'a> InstructionSelection {
                         if status.flag_z {
                             // tmp_status_z = (res_h == 0 ? tmp_status_z : 0)
                             // (i.e. tmp_status_z = '1' IFF tmp_status_z == '1' && res_h == 0)
-                            self.backend
-                                .emit_csel(&tmp_status_z, &tmp_status_z, &WZR, "EQ")
+                            self.backend.emit_csel(&tmp_status_z, &tmp_status_z, &WZR, "EQ")
                         }
                         if status.flag_n {
                             // tmp_status_n = '1' IFF res_h < 0
@@ -2453,8 +2232,7 @@ impl<'a> InstructionSelection {
 
                     if output_status {
                         emit_zext(self.backend.as_mut(), &reg_op1);
-                        self.backend
-                            .emit_subs_imm(&res, &reg_op1, imm_op2 as u16, imm_shift);
+                        self.backend.emit_subs_imm(&res, &reg_op1, imm_op2 as u16, imm_shift);
 
                         if status.flag_v {
                             if n != 32 && n != 64 {
@@ -2466,13 +2244,11 @@ impl<'a> InstructionSelection {
                                 if imm_val & (1 << (n - 1)) == 0 {
                                     // tmp_status[n-1] = 1 iff res and op1 have different signs
                                     //      and op1 has the same sign as -op2 (which is 1)
-                                    self.backend
-                                        .emit_and(&tmp_status_v, &tmp_status_v, &reg_op1);
+                                    self.backend.emit_and(&tmp_status_v, &tmp_status_v, &reg_op1);
                                 } else {
                                     // tmp_status[n-1] = 1 iff res and op1 have different signs
                                     //      and op1 has the same sign as op2 (which is 0)
-                                    self.backend
-                                        .emit_bic(&tmp_status_v, &tmp_status_v, &reg_op1);
+                                    self.backend.emit_bic(&tmp_status_v, &tmp_status_v, &reg_op1);
                                 }
 
                                 // Check the sign bit of tmp_status (i.e. tmp_status[n-1])
@@ -2493,8 +2269,7 @@ impl<'a> InstructionSelection {
                             }
                         }
                     } else {
-                        self.backend
-                            .emit_sub_imm(&res, &reg_op1, imm_op2 as u16, imm_shift);
+                        self.backend.emit_sub_imm(&res, &reg_op1, imm_op2 as u16, imm_shift);
                     }
                 } else if self.match_ireg(&ops[op1]) && self.match_ireg(&ops[op2]) {
                     trace!("emit sub-ireg-ireg");
@@ -2515,8 +2290,7 @@ impl<'a> InstructionSelection {
                             self.backend.emit_subs(&res, &reg_op1, &reg_op2);
                         } else if n == 8 || n == 16 || n == 32 || n == 64 {
                             // Emit an subs that zero extends op2
-                            self.backend
-                                .emit_subs_ext(&res, &reg_op1, &reg_op2, false, 0);
+                            self.backend.emit_subs_ext(&res, &reg_op1, &reg_op2, false, 0);
                         } else {
                             // if the carry flag isn't been computed, just zero extend op2
                             emit_zext(self.backend.as_mut(), &reg_op2);
@@ -2577,8 +2351,7 @@ impl<'a> InstructionSelection {
                         if status.flag_z {
                             // tmp_status_z = (res_h == 0 ? tmp_status_z : 0)
                             // (i.e. tmp_status_z = '1' IFF tmp_status_z == '1' && res_h == 0)
-                            self.backend
-                                .emit_csel(&tmp_status_z, &tmp_status_z, &WZR, "EQ")
+                            self.backend.emit_csel(&tmp_status_z, &tmp_status_z, &WZR, "EQ")
                         }
                         if status.flag_n {
                             // tmp_status_n = '1' IFF res_h < 0
@@ -2642,17 +2415,11 @@ impl<'a> InstructionSelection {
                     let reg_op1 = self.emit_ireg(&ops[op1], f_content, f_context, vm);
 
                     if output_status {
-                        self.backend.emit_ands_imm(
-                            &res,
-                            &reg_op1,
-                            replicate_logical_imm(imm_val, n)
-                        );
+                        self.backend
+                            .emit_ands_imm(&res, &reg_op1, replicate_logical_imm(imm_val, n));
                     } else {
-                        self.backend.emit_and_imm(
-                            &res,
-                            &reg_op1,
-                            replicate_logical_imm(imm_val, n)
-                        );
+                        self.backend
+                            .emit_and_imm(&res, &reg_op1, replicate_logical_imm(imm_val, n));
                     }
                 } else if self.match_ireg(&ops[op1]) && self.match_ireg(&ops[op2]) {
                     trace!("emit and-ireg-ireg");
@@ -2687,8 +2454,7 @@ impl<'a> InstructionSelection {
                         if status.flag_z {
                             // tmp_status_z = (res_h == 0 ? tmp_status_z : 0)
                             // (i.e. tmp_status_z = '1' IFF tmp_status_z == '1' && res_h == 0)
-                            self.backend
-                                .emit_csel(&tmp_status_z, &tmp_status_z, &WZR, "EQ")
+                            self.backend.emit_csel(&tmp_status_z, &tmp_status_z, &WZR, "EQ")
                         }
                         if status.flag_n {
                             // tmp_status_n = '1' IFF res_h < 0
@@ -2832,8 +2598,7 @@ impl<'a> InstructionSelection {
                             // Get the upper part of the product
                             // (i.e. set tmp_upper to be the full 128-bit product right shifted
                             // by n)
-                            self.backend
-                                .emit_extr(&tmp_upper, &tmp_upper, &res, n as u8);
+                            self.backend.emit_extr(&tmp_upper, &tmp_upper, &res, n as u8);
 
                             // Compare the first n bits (i.e. the upper n bits of
                             // the 2n-bits of the true product)
@@ -2884,11 +2649,7 @@ impl<'a> InstructionSelection {
                     // Compute the upper 128 bits of the product to get the V and Z flags
                     if status.flag_c || status.flag_v {
                         // C and V are the same, so get a register that contains one of them
-                        let ref tmp_status_cv = if status.flag_c {
-                            &tmp_status_c
-                        } else {
-                            &tmp_status_v
-                        };
+                        let ref tmp_status_cv = if status.flag_c { &tmp_status_c } else { &tmp_status_v };
 
                         // res_l = [op1_l*op2_h].h
                         self.backend.emit_umulh(&res_l, &op1_l, &op2_h);
@@ -2909,8 +2670,7 @@ impl<'a> InstructionSelection {
 
                         // tmp_status_cv = (res_h == 0) ? tmp_status_cv : (0+1)
                         self.backend.emit_cmp_imm(&res_h, 0, false);
-                        self.backend
-                            .emit_csinc(&tmp_status_cv, &tmp_status_cv, &XZR, "EQ");
+                        self.backend.emit_csinc(&tmp_status_cv, &tmp_status_cv, &XZR, "EQ");
 
                         // If tmp_status_cv equals tmp_status_c, then copy its value to tmp_status_v
                         if status.flag_c && status.flag_v {
@@ -3073,8 +2833,7 @@ impl<'a> InstructionSelection {
                     trace!("emit shl-ireg-imm");
 
                     let reg_op1 = self.emit_ireg(&ops[op1], f_content, f_context, vm);
-                    let imm_op2 =
-                        node_imm_to_u64(&ops[op2]) % (res.ty.get_int_length().unwrap() as u64);
+                    let imm_op2 = node_imm_to_u64(&ops[op2]) % (res.ty.get_int_length().unwrap() as u64);
 
                     self.backend.emit_lsl_imm(&res, &reg_op1, imm_op2 as u8);
                 } else if self.match_ireg(&ops[op1]) && self.match_ireg(&ops[op2]) {
@@ -3157,8 +2916,7 @@ impl<'a> InstructionSelection {
                     trace!("emit lshr-ireg-imm");
 
                     let reg_op1 = self.emit_ireg(&ops[op1], f_content, f_context, vm);
-                    let imm_op2 =
-                        node_imm_to_u64(&ops[op2]) % (res.ty.get_int_length().unwrap() as u64);
+                    let imm_op2 = node_imm_to_u64(&ops[op2]) % (res.ty.get_int_length().unwrap() as u64);
 
                     self.backend.emit_lsr_imm(&res, &reg_op1, imm_op2 as u8);
                 } else if self.match_ireg(&ops[op1]) && self.match_ireg(&ops[op2]) {
@@ -3240,8 +2998,7 @@ impl<'a> InstructionSelection {
                     trace!("emit ashr-ireg-imm");
 
                     let reg_op1 = self.emit_ireg(&ops[op1], f_content, f_context, vm);
-                    let imm_op2 =
-                        node_imm_to_u64(&ops[op2]) % (res.ty.get_int_length().unwrap() as u64);
+                    let imm_op2 = node_imm_to_u64(&ops[op2]) % (res.ty.get_int_length().unwrap() as u64);
 
                     self.backend.emit_asr_imm(&res, &reg_op1, imm_op2 as u8);
                 } else if self.match_ireg(&ops[op1]) && self.match_ireg(&ops[op2]) {
@@ -3464,13 +3221,7 @@ impl<'a> InstructionSelection {
 
     // Computes the Z and B flags for 128 bit arithmetic, but only if status_z and status_n are not
     // the zero register (respectively).
-    fn emit_flags_128(
-        &mut self,
-        res_l: &P<Value>,
-        res_h: &P<Value>,
-        status_z: &P<Value>,
-        status_n: &P<Value>
-    ) {
+    fn emit_flags_128(&mut self, res_l: &P<Value>, res_h: &P<Value>, status_z: &P<Value>, status_n: &P<Value>) {
         if !is_zero_register(status_z) {
             let tmp = &cast_value(&status_z, &UINT64_TYPE);
             // tmp = res_h | res_l
@@ -3525,14 +3276,7 @@ impl<'a> InstructionSelection {
                 // Push the remaining bytes we need to
                 let offset = 16 * (size / 16);
                 let src = cast_value(&XZR, &get_alignment_type(leftover.next_power_of_two()));
-                emit_store_base_offset(
-                    self.backend.as_mut(),
-                    &SP,
-                    offset as i64,
-                    &src,
-                    f_context,
-                    vm
-                );
+                emit_store_base_offset(self.backend.as_mut(), &SP, offset as i64, &src, f_context, vm);
             }
             self.backend.emit_mov(&res, &SP);
         } else {
@@ -3583,10 +3327,7 @@ impl<'a> InstructionSelection {
                 vm
             );
             // init object
-            let tmp_encode = cast_value(
-                &make_value_int_const(encode.tiny().as_u64(), vm),
-                &UINT8_TYPE
-            );
+            let tmp_encode = cast_value(&make_value_int_const(encode.tiny().as_u64(), vm), &UINT8_TYPE);
             self.emit_runtime_entry(
                 &entrypoints::INIT_TINY,
                 vec![tmp_allocator.clone(), tmp_res.clone(), tmp_encode],
@@ -3609,10 +3350,7 @@ impl<'a> InstructionSelection {
             );
             // init object
             if size <= mm::MAX_SMALL_OBJECT {
-                let tmp_encode = cast_value(
-                    &make_value_int_const(encode.small().as_u64(), vm),
-                    &UINT16_TYPE
-                );
+                let tmp_encode = cast_value(&make_value_int_const(encode.small().as_u64(), vm), &UINT16_TYPE);
                 self.emit_runtime_entry(
                     &entrypoints::INIT_SMALL,
                     vec![tmp_allocator.clone(), tmp_res.clone(), tmp_encode],
@@ -3622,10 +3360,7 @@ impl<'a> InstructionSelection {
                     vm
                 );
             } else {
-                let tmp_encode = cast_value(
-                    &make_value_int_const(encode.medium().as_u64(), vm),
-                    &UINT32_TYPE
-                );
+                let tmp_encode = cast_value(&make_value_int_const(encode.medium().as_u64(), vm), &UINT32_TYPE);
                 self.emit_runtime_entry(
                     &entrypoints::INIT_MEDIUM,
                     vec![tmp_allocator.clone(), tmp_res.clone(), tmp_encode],
@@ -3651,12 +3386,7 @@ impl<'a> InstructionSelection {
             let tmp_encode2 = make_value_int_const(encode.type_id() as u64, vm);
             self.emit_runtime_entry(
                 &entrypoints::INIT_LARGE,
-                vec![
-                    tmp_allocator.clone(),
-                    tmp_res.clone(),
-                    tmp_encode1,
-                    tmp_encode2,
-                ],
+                vec![tmp_allocator.clone(), tmp_res.clone(), tmp_encode1, tmp_encode2],
                 None,
                 Some(node),
                 f_context,
@@ -3674,26 +3404,14 @@ impl<'a> InstructionSelection {
         // ASM: lea [%tl + allocator_offset] -> %tmp_allocator
         let allocator_offset = *thread::ALLOCATOR_OFFSET;
         let tmp_allocator = make_temporary(f_context, ADDRESS_TYPE.clone(), vm);
-        emit_add_u64(
-            self.backend.as_mut(),
-            &tmp_allocator,
-            &tmp_tl,
-            allocator_offset as u64
-        );
+        emit_add_u64(self.backend.as_mut(), &tmp_allocator, &tmp_tl, allocator_offset as u64);
         tmp_allocator
     }
 
     // This generates code identical to (though it may use different registers)
     // the function muentry_get_thread_local
     fn emit_get_threadlocal(&mut self, f_context: &mut FunctionContext, vm: &VM) -> P<Value> {
-        let mut rets = self.emit_runtime_entry(
-            &entrypoints::GET_THREAD_LOCAL,
-            vec![],
-            None,
-            None,
-            f_context,
-            vm
-        );
+        let mut rets = self.emit_runtime_entry(&entrypoints::GET_THREAD_LOCAL, vec![], None, None, f_context, vm);
         rets.pop().unwrap()
     }
 
@@ -3765,10 +3483,10 @@ impl<'a> InstructionSelection {
         use ast::types::MuType_::*;
         let size = align_up(vm.get_backend_type_size(t.id()), 8);
         match t.v {
-            Vector(_, _) => unimplemented!(),
+            Vector(..) => unimplemented!(),
             Float | Double => 0,                         // Can return in FPR
             Hybrid(_) => panic!("cant return a hybrid"), // don't know how much space to reserve
-            Struct(_) | Array(_, _) => {
+            Struct(_) | Array(..) => {
                 if hfa_length(t) > 0 || size <= 16 {
                     0 // Can return in register (or multiple registers)
                 } else {
@@ -3786,10 +3504,10 @@ impl<'a> InstructionSelection {
         use ast::types::MuType_::*;
         let size = align_up(vm.get_backend_type_size(t.id()), 8);
         match t.v {
-            Vector(_, _) => unimplemented!(),
+            Vector(..) => unimplemented!(),
             Float | Double => get_alias_for_length(RETURN_FPRS[0].id(), get_bit_size(t, vm)),
             Hybrid(_) => panic!("cant return a hybrid"),
-            Struct(_) | Array(_, _) => {
+            Struct(_) | Array(..) => {
                 let hfa_n = hfa_length(t);
                 if hfa_n > 0 {
                     // Return in a sequence of FPRs
@@ -3869,9 +3587,9 @@ impl<'a> InstructionSelection {
             match arg_val.ty.v {
                 MuType_::Hybrid(_) => panic!("hybrid argument not supported"),
 
-                MuType_::Vector(_, _) => unimplemented!(),
+                MuType_::Vector(..) => unimplemented!(),
 
-                MuType_::Struct(_) | MuType_::Array(_, _) => {
+                MuType_::Struct(_) | MuType_::Array(..) => {
                     unimplemented!(); // Todo (note: these may be passed as IRef's)
                 }
 
@@ -3885,8 +3603,7 @@ impl<'a> InstructionSelection {
 
                     // Need to pass in two registers
                     if is_int_ex_reg(&arg_val) && arg_loc.is_reg() && reg_convention.is_some() {
-                        let arg_val =
-                            emit_reg_value(self.backend.as_mut(), &arg_val, f_context, vm);
+                        let arg_val = emit_reg_value(self.backend.as_mut(), &arg_val, f_context, vm);
                         let (val_l, val_h) = split_int128(&arg_val, f_context, vm);
 
                         let arg_loc_h_id = arg_loc.id() + 2;
@@ -3910,47 +3627,27 @@ impl<'a> InstructionSelection {
 
                         arg_regs.push(arg_loc_h.clone());
 
-                        emit_move_value_to_value(
-                            self.backend.as_mut(),
-                            &arg_loc_l,
-                            &val_l,
-                            f_context,
-                            vm
-                        );
-                        emit_move_value_to_value(
-                            self.backend.as_mut(),
-                            &arg_loc_h,
-                            &val_h,
-                            f_context,
-                            vm
-                        );
+                        emit_move_value_to_value(self.backend.as_mut(), &arg_loc_l, &val_l, f_context, vm);
+                        emit_move_value_to_value(self.backend.as_mut(), &arg_loc_h, &val_h, f_context, vm);
                     } else {
                         if (reg_convention.is_some() && arg_loc.is_reg())
                             || (stack_convention.is_some() && !arg_loc.is_reg())
                         {
                             let arg_loc = if arg_loc.is_reg() {
                                 match reg_convention {
-                                    RegisterCallConvention::Memory(ref b) => {
-                                        make_value_base_offset(
-                                            b,
-                                            get_argument_reg_offset(arg_loc.id()) as i64,
-                                            &arg_loc.ty,
-                                            vm
-                                        )
-                                    }
+                                    RegisterCallConvention::Memory(ref b) => make_value_base_offset(
+                                        b,
+                                        get_argument_reg_offset(arg_loc.id()) as i64,
+                                        &arg_loc.ty,
+                                        vm
+                                    ),
                                     _ => arg_loc.clone()
                                 }
                             } else {
                                 arg_loc.clone()
                             };
 
-                            emit_move_value_to_value(
-                                self.backend.as_mut(),
-                                &arg_loc,
-                                &arg_val,
-                                f_context,
-                                vm
-                            )
+                            emit_move_value_to_value(self.backend.as_mut(), &arg_loc, &arg_val, f_context, vm)
                         }
                     }
                 }
@@ -4015,9 +3712,9 @@ impl<'a> InstructionSelection {
                 };
 
                 match ty.v {
-                    MuType_::Vector(_, _) => unimplemented!(),
+                    MuType_::Vector(..) => unimplemented!(),
                     MuType_::Void => panic!("Unexpected void"),
-                    MuType_::Struct(_) | MuType_::Array(_, _) => unimplemented!(),
+                    MuType_::Struct(_) | MuType_::Array(..) => unimplemented!(),
 
                     // Integral, pointer of floating point type
                     _ => self.extract_bytes(&ret_val, &ret_loc, offset as i64, f_context, vm)
@@ -4036,24 +3733,11 @@ impl<'a> InstructionSelection {
     // (in the case of a machine register, sucessivie registers of the same size are considered
     // part of dest).
     // WARNING: It is assumed that dest and src do not overlap
-    fn insert_bytes(
-        &mut self,
-        dest: &P<Value>,
-        src: &P<Value>,
-        offset: i64,
-        f_context: &mut FunctionContext,
-        vm: &VM
-    ) {
+    fn insert_bytes(&mut self, dest: &P<Value>, src: &P<Value>, offset: i64, f_context: &mut FunctionContext, vm: &VM) {
         if dest.is_mem() {
             let dest_loc = match dest.v {
                 Value_::Memory(ref mem) => {
-                    let mem = memory_location_shift(
-                        self.backend.as_mut(),
-                        mem.clone(),
-                        offset,
-                        f_context,
-                        vm
-                    );
+                    let mem = memory_location_shift(self.backend.as_mut(), mem.clone(), offset, f_context, vm);
                     make_value_from_memory(mem, &src.ty, vm)
                 }
                 _ => panic!("Wrong kind of memory value")
@@ -4078,20 +3762,8 @@ impl<'a> InstructionSelection {
                         let (src_l, src_h) = split_int128(src, f_context, vm);
                         let dest_reg_h = get_register_from_id(dest_reg.id() + 2);
                         // nothing special needs to be done
-                        emit_move_value_to_value(
-                            self.backend.as_mut(),
-                            &dest_reg,
-                            &src_l,
-                            f_context,
-                            vm
-                        );
-                        emit_move_value_to_value(
-                            self.backend.as_mut(),
-                            &dest_reg_h,
-                            &src_h,
-                            f_context,
-                            vm
-                        );
+                        emit_move_value_to_value(self.backend.as_mut(), &dest_reg, &src_l, f_context, vm);
+                        emit_move_value_to_value(self.backend.as_mut(), &dest_reg_h, &src_h, f_context, vm);
                     } else {
                         // This is not possible according the Aaarch64 PCS, since it would involve a
                         // 128-bit integer which starts part way through a register, but a 128-bit
@@ -4116,34 +3788,20 @@ impl<'a> InstructionSelection {
 
                     if is_fp_reg(&src) {
                         // A temporary is being used, move src to it
-                        emit_move_value_to_value(
-                            self.backend.as_mut(),
-                            &tmp_src,
-                            &src,
-                            f_context,
-                            vm
-                        );
+                        emit_move_value_to_value(self.backend.as_mut(), &tmp_src, &src, f_context, vm);
                     }
 
                     if is_int_reg(&dest_reg) {
                         // Copy to dest_reg, 'src_size' bits starting at 'reg_offset' in src
                         // (leaving other bits unchanged)
-                        self.backend.emit_bfi(
-                            &dest_reg,
-                            &tmp_src,
-                            reg_offset as u8,
-                            src_size as u8
-                        );
+                        self.backend
+                            .emit_bfi(&dest_reg, &tmp_src, reg_offset as u8, src_size as u8);
                     } else if is_fp_reg(&dest_reg) {
                         // floating point register, need to move dest to an int register first
                         let tmp_dest = make_temporary(f_context, tmp_src.ty.clone(), vm);
                         self.backend.emit_fmov(&tmp_dest, &dest_reg);
-                        self.backend.emit_bfi(
-                            &tmp_dest,
-                            &tmp_src,
-                            reg_offset as u8,
-                            src_size as u8
-                        );
+                        self.backend
+                            .emit_bfi(&tmp_dest, &tmp_src, reg_offset as u8, src_size as u8);
 
                         // Now move it back to the FPR
                         self.backend.emit_fmov(&dest_reg, &tmp_dest);
@@ -4172,13 +3830,7 @@ impl<'a> InstructionSelection {
         if src.is_mem() {
             let src_loc = match src.v {
                 Value_::Memory(ref mem) => {
-                    let mem = memory_location_shift(
-                        self.backend.as_mut(),
-                        mem.clone(),
-                        offset,
-                        f_context,
-                        vm
-                    );
+                    let mem = memory_location_shift(self.backend.as_mut(), mem.clone(), offset, f_context, vm);
                     make_value_from_memory(mem, &dest.ty, vm)
                 }
                 _ => panic!("Wrong kind of memory value")
@@ -4204,20 +3856,8 @@ impl<'a> InstructionSelection {
                         let (dest_l, dest_h) = split_int128(dest, f_context, vm);
                         let src_reg_h = get_register_from_id(src_reg.id() + 2);
                         // nothing special needs to be done
-                        emit_move_value_to_value(
-                            self.backend.as_mut(),
-                            &dest_l,
-                            &src_reg,
-                            f_context,
-                            vm
-                        );
-                        emit_move_value_to_value(
-                            self.backend.as_mut(),
-                            &dest_h,
-                            &src_reg_h,
-                            f_context,
-                            vm
-                        );
+                        emit_move_value_to_value(self.backend.as_mut(), &dest_l, &src_reg, f_context, vm);
+                        emit_move_value_to_value(self.backend.as_mut(), &dest_h, &src_reg_h, f_context, vm);
                     } else {
                         // This is not possible according the Aaarch64 PCS, since it would involve a
                         // 128-bit integer which starts part way through a register, but a 128-bit
@@ -4243,32 +3883,18 @@ impl<'a> InstructionSelection {
                     if is_int_reg(&src_reg) {
                         // Copy from src_reg, 'dest_size' bits starting at 'reg_offset' and store
                         // in dest (leaving other bits unchanged    )
-                        self.backend.emit_bfxil(
-                            &tmp_dest,
-                            &src_reg,
-                            reg_offset as u8,
-                            dest_size as u8
-                        );
+                        self.backend
+                            .emit_bfxil(&tmp_dest, &src_reg, reg_offset as u8, dest_size as u8);
                     } else {
                         // floating point register, need to copy to an int register first
                         self.backend.emit_fmov(&tmp_dest, &src_reg);
-                        self.backend.emit_bfxil(
-                            &tmp_dest,
-                            &tmp_dest,
-                            reg_offset as u8,
-                            dest_size as u8
-                        );
+                        self.backend
+                            .emit_bfxil(&tmp_dest, &tmp_dest, reg_offset as u8, dest_size as u8);
                     }
 
                     if !(is_int_reg(&dest)) {
                         // A temporary was used, move the value to dest
-                        emit_move_value_to_value(
-                            self.backend.as_mut(),
-                            &dest,
-                            &tmp_dest,
-                            f_context,
-                            vm
-                        );
+                        emit_move_value_to_value(self.backend.as_mut(), &dest, &tmp_dest, f_context, vm);
                     }
                 }
             }
@@ -4308,14 +3934,8 @@ impl<'a> InstructionSelection {
             unimplemented!()
         } else {
             // assume ccall wont throw exception
-            self.backend.emit_bl(
-                None,
-                func_name,
-                None,
-                arg_regs,
-                CALLER_SAVED_REGS.to_vec(),
-                true
-            );
+            self.backend
+                .emit_bl(None, func_name, None, arg_regs, CALLER_SAVED_REGS.to_vec(), true);
 
             // record exception block (CCall may have an exception block)
             if cur_node.is_some() {
@@ -4476,17 +4096,11 @@ impl<'a> InstructionSelection {
             Some(ref values) => values.iter().map(|v| v.ty.clone()).collect::<Vec<_>>(),
             None => vec![]
         };
-        let (_, res_locs, res_stack_size) =
-            compute_argument_locations(&res_tys, &SP, 0, false, &vm);
+        let (_, res_locs, res_stack_size) = compute_argument_locations(&res_tys, &SP, 0, false, &vm);
 
         if !is_kill {
             // Load the callsite's address into LR
-            let callsite_value = make_value_symbolic(
-                callsite_label.as_ref().unwrap().clone(),
-                false,
-                &VOID_TYPE,
-                vm
-            );
+            let callsite_value = make_value_symbolic(callsite_label.as_ref().unwrap().clone(), false, &VOID_TYPE, vm);
             self.backend.emit_adr(&LR, &callsite_value);
 
             // Reserve space on the stack for the return values of the swap stack
@@ -4578,12 +4192,7 @@ impl<'a> InstructionSelection {
         if is_exception {
             // Reserve space on the new stack for the exception handling routine to store
             // callee saved registers
-            emit_sub_u64(
-                self.backend.as_mut(),
-                &SP,
-                &SP,
-                (WORD_SIZE * CALLEE_SAVED_COUNT) as u64
-            );
+            emit_sub_u64(self.backend.as_mut(), &SP, &SP, (WORD_SIZE * CALLEE_SAVED_COUNT) as u64);
         } else {
             // Restore the FP and LR from the old stack
             self.backend.emit_pop_pair(&FP, &LR, &SP);
@@ -4640,10 +4249,7 @@ impl<'a> InstructionSelection {
         }
     }
 
-    fn get_potentially_excepting(
-        resumption: Option<&ResumptionData>,
-        f_content: &FunctionContent
-    ) -> Option<MuName> {
+    fn get_potentially_excepting(resumption: Option<&ResumptionData>, f_content: &FunctionContent) -> Option<MuName> {
         if resumption.is_some() {
             let target_id = resumption.unwrap().exn_dest.target.id();
             Some(f_content.get_block(target_id).name())
@@ -4652,22 +4258,14 @@ impl<'a> InstructionSelection {
         }
     }
 
-    fn record_callsite(
-        &mut self,
-        resumption: Option<&ResumptionData>,
-        callsite: ValueLocation,
-        stack_arg_size: usize
-    ) {
+    fn record_callsite(&mut self, resumption: Option<&ResumptionData>, callsite: ValueLocation, stack_arg_size: usize) {
         let target_block_id = match resumption {
             Some(rd) => rd.exn_dest.target.id(),
             None => 0
         };
 
-        self.current_callsites.push_back((
-            callsite.to_relocatable(),
-            target_block_id,
-            stack_arg_size
-        ));
+        self.current_callsites
+            .push_back((callsite.to_relocatable(), target_block_id, stack_arg_size));
     }
 
     fn emit_mu_call(
@@ -4696,9 +4294,7 @@ impl<'a> InstructionSelection {
         debug_assert!(func_sig.arg_tys.len() == calldata.args.len());
         if cfg!(debug_assertions) {
             if inst.value.is_some() {
-                assert!(
-                    (!is_tail) && (func_sig.ret_tys.len() == inst.value.as_ref().unwrap().len())
-                );
+                assert!((!is_tail) && (func_sig.ret_tys.len() == inst.value.as_ref().unwrap().len()));
             } else {
                 assert!(
                     is_tail || (func_sig.ret_tys.len() == 0),
@@ -4748,8 +4344,7 @@ impl<'a> InstructionSelection {
                     .emit_b_call(None, target.name(), None, arg_regs, vec![], false, false);
             } else {
                 let target = self.emit_ireg(func, f_content, f_context, vm);
-                self.backend
-                    .emit_br_call(None, &target, None, arg_regs, vec![], false);
+                self.backend.emit_br_call(None, &target, None, arg_regs, vec![], false);
             }
         } else {
             // Emit a branch with link (i.e. a call)
@@ -4846,12 +4441,7 @@ impl<'a> InstructionSelection {
                     //                        }
                     //                    }
                     //
-                    let ref target_args = f_content
-                        .get_block(dest.target.id())
-                        .content
-                        .as_ref()
-                        .unwrap()
-                        .args;
+                    let ref target_args = f_content.get_block(dest.target.id()).content.as_ref().unwrap().args;
                     let ref target_arg = target_args[i];
 
                     self.emit_move_node_to_value(target_arg, &arg, f_content, f_context, vm);
@@ -4893,8 +4483,7 @@ impl<'a> InstructionSelection {
         self.current_xr_value = Some(make_temporary(f_context, ADDRESS_TYPE.clone(), vm));
         if self.compute_return_allocation(&ret_ty, &vm) > 0 {
             // Save the value of 'XR' into a new temporary value
-            self.backend
-                .emit_mov(&self.current_xr_value.as_ref().unwrap(), &XR);
+            self.backend.emit_mov(&self.current_xr_value.as_ref().unwrap(), &XR);
         }
 
         // push all callee-saved registers
@@ -4933,8 +4522,7 @@ impl<'a> InstructionSelection {
             self.backend.emit_str_callee_saved(&loc, &reg);
         }
 
-        let (_, locations, stack_arg_size) =
-            compute_argument_locations(&sig.arg_tys, &FP, 16, false, &vm);
+        let (_, locations, stack_arg_size) = compute_argument_locations(&sig.arg_tys, &FP, 16, false, &vm);
         self.current_stack_arg_size = stack_arg_size;
         self.emit_unload_arguments(args, locations, f_context, vm);
         self.finish_block();
@@ -4957,7 +4545,7 @@ impl<'a> InstructionSelection {
             match arg_val.ty.v {
                 MuType_::Hybrid(_) => panic!("hybrid argument not supported"),
 
-                MuType_::Vector(_, _) => unimplemented!(),
+                MuType_::Vector(..) => unimplemented!(),
                 MuType_::Float | MuType_::Double => {
                     if is_fp_reg(&arg_loc) {
                         // Argument is passed in a floating point register
@@ -4976,7 +4564,7 @@ impl<'a> InstructionSelection {
                             .add_argument_by_stack(arg_val.id(), arg_loc.clone());
                     }
                 }
-                MuType_::Struct(_) | MuType_::Array(_, _) => {
+                MuType_::Struct(_) | MuType_::Array(..) => {
                     unimplemented!(); // Todo (note: these may be passed as IRef's)
                 }
 
@@ -5072,7 +4660,7 @@ impl<'a> InstructionSelection {
     fn match_cmp_res(&mut self, op: &TreeNode) -> bool {
         match op.v {
             TreeNode_::Instruction(ref inst) => match inst.v {
-                Instruction_::CmpOp(_, _, _) => true,
+                Instruction_::CmpOp(..) => true,
                 _ => false
             },
             TreeNode_::Value(_) => false
@@ -5230,8 +4818,7 @@ impl<'a> InstructionSelection {
                     emit_zext(self.backend.as_mut(), &reg_op1);
                 }
 
-                self.backend
-                    .emit_cmp_imm(&reg_op1, imm_op2 as u16, imm_shift);
+                self.backend.emit_cmp_imm(&reg_op1, imm_op2 as u16, imm_shift);
             } else {
                 let reg_op1 = self.emit_ireg(op1, f_content, f_context, vm);
                 let reg_op2 = self.emit_ireg(op2, f_content, f_context, vm);
@@ -5569,46 +5156,23 @@ impl<'a> InstructionSelection {
                             None => panic!("expecting an iref or uptr in GetVarPartIRef")
                         };
                         let fix_part_size = vm.get_backend_type_size(struct_ty.id());
-                        self.emit_offset_ref(
-                            &ops[base],
-                            fix_part_size as i64,
-                            f_content,
-                            f_context,
-                            vm
-                        )
+                        self.emit_offset_ref(&ops[base], fix_part_size as i64, f_content, f_context, vm)
                     }
 
                     // SHIFTIREF < T1 T2 > opnd offset = opnd + offset*size_of(T1)
                     Instruction_::ShiftIRef { base, offset, .. } => {
                         let element_type = ops[base].clone_value().ty.get_referent_ty().unwrap();
                         let element_size = vm.get_backend_type_size(element_type.id());
-                        self.emit_shift_ref(
-                            &ops[base],
-                            &ops[offset],
-                            element_size,
-                            f_content,
-                            f_context,
-                            vm
-                        )
+                        self.emit_shift_ref(&ops[base], &ops[offset], element_size, f_content, f_context, vm)
                     }
                     // GETELEMIREF <T1 T2> opnd index = opnd + index*element_size(T1)
                     Instruction_::GetElementIRef { base, index, .. } => {
                         let array_type = ops[base].clone_value().ty.get_referent_ty().unwrap();
-                        let element_size =
-                            vm.get_backend_type_info(array_type.id()).elem_size.unwrap();
+                        let element_size = vm.get_backend_type_info(array_type.id()).elem_size.unwrap();
 
-                        self.emit_shift_ref(
-                            &ops[base],
-                            &ops[index],
-                            element_size,
-                            f_content,
-                            f_context,
-                            vm
-                        )
+                        self.emit_shift_ref(&ops[base], &ops[index], element_size, f_content, f_context, vm)
                     }
-                    Instruction_::ConvOp {
-                        operation, operand, ..
-                    } => {
+                    Instruction_::ConvOp { operation, operand, .. } => {
                         match operation {
                             op::ConvOp::REFCAST | op::ConvOp::PTRCAST => {
                                 let ref ref_op = ops[operand];
@@ -5747,12 +5311,7 @@ impl<'a> InstructionSelection {
                 }
                 _ => {
                     let tmp = self.emit_ireg(base, f_content, f_context, vm);
-                    make_memory_location_base_offset_scale(
-                        &tmp,
-                        &tmp_offset,
-                        element_size as u64,
-                        true
-                    )
+                    make_memory_location_base_offset_scale(&tmp, &tmp_offset, element_size as u64, true)
                 }
             }
         }
@@ -5859,12 +5418,7 @@ impl<'a> InstructionSelection {
         emit_move_value_to_value(self.backend.as_mut(), dest, &src, f_context, vm);
     }
 
-    fn emit_landingpad(
-        &mut self,
-        exception_arg: &P<Value>,
-        f_context: &mut FunctionContext,
-        vm: &VM
-    ) {
+    fn emit_landingpad(&mut self, exception_arg: &P<Value>, f_context: &mut FunctionContext, vm: &VM) {
         // get thread local and add offset to get exception_obj
         let tl = self.emit_get_threadlocal(f_context, vm);
         emit_load_base_offset(
@@ -5951,9 +5505,7 @@ impl StackCallConvention {
     }
     fn base(&self) -> &P<Value> {
         match self {
-            &StackCallConvention::Push(ref base) | &StackCallConvention::Offset(ref base, _) => {
-                base
-            }
+            &StackCallConvention::Push(ref base) | &StackCallConvention::Offset(ref base, _) => base,
             &StackCallConvention::None => &XZR // Will likley segfault if we try and use it
         }
     }
@@ -6032,8 +5584,7 @@ impl CompilerPass for InstructionSelection {
                 // catch exceptions
 
                 let loc = self.backend.start_exception_block(block_label.clone());
-                self.current_exn_blocks
-                    .insert(block.id(), loc.to_relocatable());
+                self.current_exn_blocks.insert(block.id(), loc.to_relocatable());
             } else {
                 // normal block
                 self.backend.start_block(block_label.clone());
@@ -6078,10 +5629,7 @@ impl CompilerPass for InstructionSelection {
         // insert exception branch info
         let frame = match self.current_frame.take() {
             Some(frame) => frame,
-            None => panic!(
-                "no current_frame for function {} that is being compiled",
-                func_name
-            )
+            None => panic!("no current_frame for function {} that is being compiled", func_name)
         };
 
         for &(ref callsite, block_id, stack_arg_size) in self.current_callsites.iter() {

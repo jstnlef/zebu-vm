@@ -14,17 +14,17 @@
 
 extern crate libloading;
 
-use mu::ast::types::*;
-use mu::ast::ir::*;
 use mu::ast::inst::*;
+use mu::ast::ir::*;
 use mu::ast::op::*;
-use mu::vm::*;
+use mu::ast::types::*;
 use mu::linkutils;
 use mu::utils::LinkedHashMap;
+use mu::vm::*;
 
-use std::sync::Arc;
-use mu::linkutils::aot;
 use mu::compiler::*;
+use mu::linkutils::aot;
+use std::sync::Arc;
 
 #[test]
 fn test_switch() {
@@ -1061,16 +1061,8 @@ fn branch2_eq_50p_2() -> VM {
 
 #[test]
 fn test_branch2_high_prob_branch_cannot_fallthrough() {
-    build_and_run_test!(
-        branch2,
-        branch2_test1,
-        branch2_high_prob_branch_cannot_fallthrough
-    );
-    build_and_run_test!(
-        branch2,
-        branch2_test2,
-        branch2_high_prob_branch_cannot_fallthrough
-    );
+    build_and_run_test!(branch2, branch2_test1, branch2_high_prob_branch_cannot_fallthrough);
+    build_and_run_test!(branch2, branch2_test2, branch2_high_prob_branch_cannot_fallthrough);
 }
 
 fn branch2_high_prob_branch_cannot_fallthrough() -> VM {
@@ -1185,10 +1177,7 @@ fn branch2_high_prob_branch_cannot_fallthrough() -> VM {
 fn test_branch_adjust_follow_by_neither() {
     VM::start_logging_trace();
 
-    linkutils::aot::compile_fnc(
-        "branch_adjust_follow_by_neither",
-        &branch_adjust_follow_by_neither
-    );
+    linkutils::aot::compile_fnc("branch_adjust_follow_by_neither", &branch_adjust_follow_by_neither);
 }
 
 fn branch_adjust_follow_by_neither() -> VM {

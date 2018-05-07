@@ -14,16 +14,16 @@
 
 extern crate hprof;
 
-use ast::ptr::*;
 use ast::ir::*;
+use ast::ptr::*;
 use compiler::backend;
 use compiler::backend::reg_alloc::graph_coloring;
 use compiler::backend::reg_alloc::graph_coloring::liveness::InterferenceGraph;
-use compiler::machine_code::CompiledFunction;
-use vm::VM;
-use utils::LinkedHashSet;
-use utils::LinkedHashMap;
 use compiler::backend::reg_alloc::graph_coloring::liveness::Move;
+use compiler::machine_code::CompiledFunction;
+use utils::LinkedHashMap;
+use utils::LinkedHashSet;
+use vm::VM;
 
 /// allows coalescing
 const COALESCING: bool = true;
@@ -98,19 +98,8 @@ pub struct GraphColoring<'a> {
 
 impl<'a> GraphColoring<'a> {
     /// starts coloring
-    pub fn start(
-        func: &'a mut MuFunctionVersion,
-        cf: &'a mut CompiledFunction,
-        vm: &'a VM
-    ) -> GraphColoring<'a> {
-        GraphColoring::start_with_spill_history(
-            LinkedHashMap::new(),
-            LinkedHashMap::new(),
-            0,
-            func,
-            cf,
-            vm
-        )
+    pub fn start(func: &'a mut MuFunctionVersion, cf: &'a mut CompiledFunction, vm: &'a VM) -> GraphColoring<'a> {
+        GraphColoring::start_with_spill_history(LinkedHashMap::new(), LinkedHashMap::new(), 0, func, cf, vm)
     }
 
     /// restarts coloring with spill history
@@ -218,8 +207,8 @@ impl<'a> GraphColoring<'a> {
                 self.check_invariants();
             }
 
-            !(self.worklist_simplify.is_empty() && self.worklist_moves.is_empty()
-                && self.worklist_freeze.is_empty() && self.worklist_spill.is_empty())
+            !(self.worklist_simplify.is_empty() && self.worklist_moves.is_empty() && self.worklist_freeze.is_empty()
+                && self.worklist_spill.is_empty())
         } {}
 
         // pick color for nodes
@@ -340,10 +329,7 @@ impl<'a> GraphColoring<'a> {
                     ret
                 };
 
-                self.checkinv_assert(
-                    intersect.len() == 0,
-                    format!("intersect({}) is not empty", u)
-                );
+                self.checkinv_assert(intersect.len() == 0, format!("intersect({}) is not empty", u));
             }
         }
     }
@@ -417,11 +403,7 @@ impl<'a> GraphColoring<'a> {
         }
     }
 
-    fn add_to_movelist(
-        movelist: &mut LinkedHashMap<MuID, LinkedHashSet<Move>>,
-        reg: MuID,
-        mov: Move
-    ) {
+    fn add_to_movelist(movelist: &mut LinkedHashMap<MuID, LinkedHashSet<Move>>, reg: MuID, mov: Move) {
         trace!("  add {:?} to movelist[{}]", mov, reg);
         if movelist.contains_key(&reg) {
             let list = movelist.get_mut(&reg).unwrap();
@@ -500,10 +482,7 @@ impl<'a> GraphColoring<'a> {
 
             // degree >= K
             if self.ig.get_degree_of(node) >= self.n_regs_for_node(node) {
-                trace!(
-                    "  {} 's degree >= reg number limit (K), push to worklistSpill",
-                    node
-                );
+                trace!("  {} 's degree >= reg number limit (K), push to worklistSpill", node);
                 self.worklist_spill.insert(node);
             } else if self.is_move_related(node) {
                 trace!("  {} is move related, push to worklistFreeze", node);
@@ -730,9 +709,7 @@ impl<'a> GraphColoring<'a> {
             if !precolored_v {
                 self.add_worklist(v);
             }
-        } else if (precolored_u && self.check_ok(u, v))
-            || (!precolored_u && self.check_conservative(u, v))
-        {
+        } else if (precolored_u && self.check_ok(u, v)) || (!precolored_u && self.check_conservative(u, v)) {
             trace!("  ok(u, v) = {}", self.check_ok(u, v));
             trace!("  conservative(u, v) = {}", self.check_conservative(u, v));
 
@@ -842,8 +819,7 @@ impl<'a> GraphColoring<'a> {
             self.decrement_degree(t);
         }
 
-        if self.worklist_freeze.contains(&u) && self.ig.get_degree_of(u) >= self.n_regs_for_node(u)
-        {
+        if self.worklist_freeze.contains(&u) && self.ig.get_degree_of(u) >= self.n_regs_for_node(u) {
             trace!("  move {} from worklistFreeze to worklistSpill", u);
             self.worklist_freeze.remove(&u);
             self.worklist_spill.insert(u);
@@ -959,8 +935,7 @@ impl<'a> GraphColoring<'a> {
             let n = coloring_queue.pop().unwrap();
             trace!("Assigning color to {}", n);
 
-            let mut ok_colors: LinkedHashSet<MuID> =
-                self.colors.get(&self.ig.get_group_of(n)).unwrap().clone();
+            let mut ok_colors: LinkedHashSet<MuID> = self.colors.get(&self.ig.get_group_of(n)).unwrap().clone();
 
             trace!("  all the colors for this temp: {:?}", ok_colors);
 
@@ -1027,11 +1002,8 @@ impl<'a> GraphColoring<'a> {
 
         for mov in self.frozen_moves.iter() {
             // find the other part of the mov
-            let other = if mov.from == reg {
-                mov.to
-            } else {
-                mov.from
-            };
+            let other =
+                if mov.from == reg { mov.to } else { mov.from };
             let alias = self.get_alias(other);
             let other_color = self.ig.get_color_of(alias);
             let other_weight = self.ig.get_spill_cost(alias);

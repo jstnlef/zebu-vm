@@ -13,13 +13,13 @@
 // limitations under the License.
 
 use compiler::backend::*;
-use utils::Address;
-use utils::POINTER_SIZE;
+use compiler::machine_code::CompiledCallsite;
+use log;
+use runtime::*;
 use std::collections::HashMap;
 use std::ops::Deref;
-use compiler::machine_code::CompiledCallsite;
-use runtime::*;
-use log;
+use utils::Address;
+use utils::POINTER_SIZE;
 
 /// runtime function to deal with exception (unwind stack, find catch block, and restore)
 /// This function is called by muentry_throw_exception() which gets emitted for THROW instruction
@@ -97,10 +97,7 @@ pub extern "C" fn throw_exception_internal(exception_obj: Address, frame_cursor:
                     catch_address,
                     get_symbol_name(catch_address)
                 );
-                sp = get_previous_stack_pointer(
-                    current_frame_pointer,
-                    callsite_info.stack_args_size
-                );
+                sp = get_previous_stack_pointer(current_frame_pointer, callsite_info.stack_args_size);
                 trace!("\tRestoring SP to: 0x{:x}", sp);
 
                 if cfg!(debug_assertions) {
@@ -178,15 +175,8 @@ fn print_backtrace(base: Address, compiled_callsite_table: &HashMap<Address, Com
         }
 
         if compiled_callsite_table.contains_key(&callsite) {
-            let function_version = compiled_callsite_table
-                .get(&callsite)
-                .unwrap()
-                .function_version;
-            let compiled_func = compiled_funcs
-                .get(&function_version)
-                .unwrap()
-                .read()
-                .unwrap();
+            let function_version = compiled_callsite_table.get(&callsite).unwrap().function_version;
+            let compiled_func = compiled_funcs.get(&function_version).unwrap().read().unwrap();
 
             debug!(
                 "\tframe {:2}: 0x{:x} - {} (fid: #{}, fvid: #{}) at 0x{:x} - {}",

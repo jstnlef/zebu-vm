@@ -14,22 +14,20 @@
 
 extern crate libloading;
 
-use mu::ast::types::*;
-use mu::ast::ir::*;
 use mu::ast::inst::*;
+use mu::ast::ir::*;
 use mu::ast::op::*;
-use mu::vm::*;
+use mu::ast::types::*;
 use mu::linkutils;
 use mu::utils::LinkedHashMap;
+use mu::vm::*;
 
 #[test]
 fn test_inline_add_simple() {
-    let lib =
-        linkutils::aot::compile_fncs("add_trampoline", vec!["add_trampoline", "add"], &inline_add);
+    let lib = linkutils::aot::compile_fncs("add_trampoline", vec!["add_trampoline", "add"], &inline_add);
 
     unsafe {
-        let inline_add: libloading::Symbol<unsafe extern "C" fn(u64, u64) -> u64> =
-            lib.get(b"add_trampoline").unwrap();
+        let inline_add: libloading::Symbol<unsafe extern "C" fn(u64, u64) -> u64> = lib.get(b"add_trampoline").unwrap();
 
         let inline_add_1_1 = inline_add(1, 1);
         println!("add(1, 1) = {}", inline_add_1_1);
@@ -101,12 +99,10 @@ fn inline_add() -> VM {
 
 #[test]
 fn test_inline_add_twice() {
-    let lib =
-        linkutils::aot::compile_fncs("add_twice", vec!["add_twice", "add"], &inline_add_twice);
+    let lib = linkutils::aot::compile_fncs("add_twice", vec!["add_twice", "add"], &inline_add_twice);
 
     unsafe {
-        let add_twice: libloading::Symbol<unsafe extern "C" fn(u64, u64, u64) -> u64> =
-            lib.get(b"add_twice").unwrap();
+        let add_twice: libloading::Symbol<unsafe extern "C" fn(u64, u64, u64) -> u64> = lib.get(b"add_twice").unwrap();
 
         let res = add_twice(1, 1, 1);
         println!("add(1, 1, 1) = {}", res);

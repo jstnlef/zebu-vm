@@ -12,10 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use mu::vm::*;
-use mu::vm::handle::*;
 use mu::ast::types::*;
 use mu::utils::Address;
+use mu::vm::*;
+use mu::vm::handle::*;
 
 use std::f64;
 use std::mem::transmute;
@@ -58,9 +58,7 @@ fn int52(val: u64) -> APIHandle {
 fn ref_void(val: u64) -> APIHandle {
     APIHandle {
         id: 0, // arbitrary
-        v: APIHandleValue::Ref(REF_VOID_TYPE.clone(), unsafe {
-            Address::from_usize(val as usize)
-        })
+        v: APIHandleValue::Ref(REF_VOID_TYPE.clone(), unsafe { Address::from_usize(val as usize) })
     }
 }
 
@@ -109,27 +107,19 @@ fn test_encode_int() {
     let vm = VM::new();
 
     assert_eq!(
-        vm.handle_tr64_from_int(&int52(0x0000000000000u64))
-            .v
-            .as_tr64(),
+        vm.handle_tr64_from_int(&int52(0x0000000000000u64)).v.as_tr64(),
         0x7ff0000000000001u64
     );
     assert_eq!(
-        vm.handle_tr64_from_int(&int52(0xfffffffffffffu64))
-            .v
-            .as_tr64(),
+        vm.handle_tr64_from_int(&int52(0xfffffffffffffu64)).v.as_tr64(),
         0xffffffffffffffffu64
     );
     assert_eq!(
-        vm.handle_tr64_from_int(&int52(0x5555555555555u64))
-            .v
-            .as_tr64(),
+        vm.handle_tr64_from_int(&int52(0x5555555555555u64)).v.as_tr64(),
         0x7ffaaaaaaaaaaaabu64
     );
     assert_eq!(
-        vm.handle_tr64_from_int(&int52(0xaaaaaaaaaaaaau64))
-            .v
-            .as_tr64(),
+        vm.handle_tr64_from_int(&int52(0xaaaaaaaaaaaaau64)).v.as_tr64(),
         0xfff5555555555555u64
     );
 }
@@ -201,28 +191,17 @@ fn test_encode_tagref() {
 fn test_decode_integer() {
     let vm = VM::new();
 
+    assert_eq!(vm.handle_tr64_to_int(&tr64(0x7ff0000000000001u64)).v.as_int(), 0u64);
     assert_eq!(
-        vm.handle_tr64_to_int(&tr64(0x7ff0000000000001u64))
-            .v
-            .as_int(),
-        0u64
-    );
-    assert_eq!(
-        vm.handle_tr64_to_int(&tr64(0xfff0000000000001u64))
-            .v
-            .as_int(),
+        vm.handle_tr64_to_int(&tr64(0xfff0000000000001u64)).v.as_int(),
         0x8000000000000u64
     );
     assert_eq!(
-        vm.handle_tr64_to_int(&tr64(0xfff5555555555555u64))
-            .v
-            .as_int(),
+        vm.handle_tr64_to_int(&tr64(0xfff5555555555555u64)).v.as_int(),
         0xaaaaaaaaaaaaau64
     );
     assert_eq!(
-        vm.handle_tr64_to_int(&tr64(0x7ffaaaaaaaaaaaabu64))
-            .v
-            .as_int(),
+        vm.handle_tr64_to_int(&tr64(0x7ffaaaaaaaaaaaabu64)).v.as_int(),
         0x5555555555555u64
     );
 }
@@ -232,29 +211,18 @@ fn test_decode_double() {
     let vm = VM::new();
 
     assert_eq!(
-        vm.handle_tr64_to_fp(&tr64(0x0000000000000000u64))
-            .v
-            .as_double(),
+        vm.handle_tr64_to_fp(&tr64(0x0000000000000000u64)).v.as_double(),
         0.0_f64
     );
     assert_eq!(
-        vm.handle_tr64_to_fp(&tr64(0x8000000000000000u64))
-            .v
-            .as_double(),
+        vm.handle_tr64_to_fp(&tr64(0x8000000000000000u64)).v.as_double(),
         -0.0_f64
     );
     assert_eq!(
-        vm.handle_tr64_to_fp(&tr64(0x3ff0000000000000u64))
-            .v
-            .as_double(),
+        vm.handle_tr64_to_fp(&tr64(0x3ff0000000000000u64)).v.as_double(),
         1.0_f64
     );
-    assert!(
-        vm.handle_tr64_to_fp(&tr64(0x7ff0000000000008))
-            .v
-            .as_double()
-            .is_nan()
-    );
+    assert!(vm.handle_tr64_to_fp(&tr64(0x7ff0000000000008)).v.as_double().is_nan());
 }
 
 #[test]
@@ -277,28 +245,8 @@ fn test_decode_tagref() {
             .as_usize() as u64,
         0xffffaaaaaaaaaaa8u64
     );
-    assert_eq!(
-        vm.handle_tr64_to_tag(&tr64(0x7ff0555555555552u64))
-            .v
-            .as_int(),
-        0u64
-    );
-    assert_eq!(
-        vm.handle_tr64_to_tag(&tr64(0x7fff800000000006u64))
-            .v
-            .as_int(),
-        0x3fu64
-    );
-    assert_eq!(
-        vm.handle_tr64_to_tag(&tr64(0x7ffa800000000002u64))
-            .v
-            .as_int(),
-        0x2au64
-    );
-    assert_eq!(
-        vm.handle_tr64_to_tag(&tr64(0x7ff5000000000006u64))
-            .v
-            .as_int(),
-        0x15u64
-    );
+    assert_eq!(vm.handle_tr64_to_tag(&tr64(0x7ff0555555555552u64)).v.as_int(), 0u64);
+    assert_eq!(vm.handle_tr64_to_tag(&tr64(0x7fff800000000006u64)).v.as_int(), 0x3fu64);
+    assert_eq!(vm.handle_tr64_to_tag(&tr64(0x7ffa800000000002u64)).v.as_int(), 0x2au64);
+    assert_eq!(vm.handle_tr64_to_tag(&tr64(0x7ff5000000000006u64)).v.as_int(), 0x15u64);
 }

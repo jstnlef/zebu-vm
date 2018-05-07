@@ -15,18 +15,18 @@
 use ast::ir::*;
 use ast::ptr::*;
 use compiler;
-use compiler::frame::*;
 use compiler::backend::mc_loopanalysis::MCLoopAnalysisResult;
-use runtime::ValueLocation;
-use utils::Address;
-use utils::{LinkedHashMap, LinkedHashSet};
-use runtime::resolve_symbol;
+use compiler::frame::*;
 use rodal;
-use std::sync::Arc;
+use runtime::ValueLocation;
+use runtime::resolve_symbol;
 use std;
-use std::ops;
 use std::collections::HashMap;
 use std::collections::HashSet;
+use std::ops;
+use std::sync::Arc;
+use utils::{LinkedHashMap, LinkedHashSet};
+use utils::Address;
 
 /// CompiledFunction store all information (including code) for a function that is compiled
 pub struct CompiledFunction {
@@ -130,11 +130,7 @@ pub struct CompiledCallsite {
     pub function_version: MuID
 }
 impl CompiledCallsite {
-    pub fn new(
-        callsite: &Callsite,
-        fv: MuID,
-        callee_saved_registers: Arc<HashMap<isize, isize>>
-    ) -> CompiledCallsite {
+    pub fn new(callsite: &Callsite, fv: MuID, callee_saved_registers: Arc<HashMap<isize, isize>>) -> CompiledCallsite {
         CompiledCallsite {
             exceptional_destination: match &callsite.exception_destination {
                 &Some(ref name) => Some(resolve_symbol(name.clone())),
@@ -376,12 +372,7 @@ impl MachineCFG {
     }
 
     /// checks if there exists a path between from and to, without excluded node
-    pub fn has_path_with_node_excluded(
-        &self,
-        from: &MuName,
-        to: &MuName,
-        exclude_node: &MuName
-    ) -> bool {
+    pub fn has_path_with_node_excluded(&self, from: &MuName, to: &MuName, exclude_node: &MuName) -> bool {
         // we cannot exclude start and end of the path
         assert!(exclude_node != from && exclude_node != to);
 

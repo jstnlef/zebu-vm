@@ -14,12 +14,12 @@
 
 extern crate mu;
 
-use self::mu::ast::types::*;
-use self::mu::ast::ir::*;
 use self::mu::ast::inst::*;
+use self::mu::ast::ir::*;
 use self::mu::ast::op::*;
-use self::mu::vm::*;
+use self::mu::ast::types::*;
 use self::mu::utils::LinkedHashMap;
+use self::mu::vm::*;
 
 use std::sync::Arc;
 
@@ -218,8 +218,8 @@ pub fn factorial() -> VM {
 #[test]
 #[allow(unused_variables)]
 fn test_global_access() {
-    use utils::Address;
     use mu::runtime::thread::MuThread;
+    use utils::Address;
 
     let vm = Arc::new(VM::new());
 

@@ -14,11 +14,11 @@
 
 extern crate mu;
 
-use test_ir::test_ir::factorial;
-use test_ir::test_ir::sum;
 use self::mu::ast::ir::*;
 use self::mu::compiler::*;
 use self::mu::vm::VM;
+use test_ir::test_ir::factorial;
+use test_ir::test_ir::sum;
 
 use std::sync::Arc;
 
@@ -27,77 +27,42 @@ fn test_use_count() {
     VM::start_logging_trace();
 
     let vm = Arc::new(factorial());
-    let compiler = Compiler::new(
-        CompilerPolicy::new(vec![Box::new(passes::DefUse::new())]),
-        &vm
-    );
+    let compiler = Compiler::new(CompilerPolicy::new(vec![Box::new(passes::DefUse::new())]), &vm);
 
     let func_id = vm.id_of("fac");
     let funcs = vm.funcs().read().unwrap();
     let func = funcs.get(&func_id).unwrap().read().unwrap();
     let func_vers = vm.func_vers().read().unwrap();
-    let mut func_ver = func_vers
-        .get(&func.cur_ver.unwrap())
-        .unwrap()
-        .write()
-        .unwrap();
+    let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
 
     compiler.compile(&mut func_ver);
 
     assert!(
-        func_ver
-            .context
-            .get_value(vm.id_of("blk_0_n_3"))
-            .unwrap()
-            .use_count() == 2,
+        func_ver.context.get_value(vm.id_of("blk_0_n_3")).unwrap().use_count() == 2,
         "blk_0_n_3 use should be 2"
     );
     assert!(
-        func_ver
-            .context
-            .get_value(vm.id_of("blk_0_v48"))
-            .unwrap()
-            .use_count() == 1,
+        func_ver.context.get_value(vm.id_of("blk_0_v48")).unwrap().use_count() == 1,
         "blk_0_v48 use should be 1"
     );
     assert!(
-        func_ver
-            .context
-            .get_value(vm.id_of("blk_2_v53"))
-            .unwrap()
-            .use_count() == 1,
+        func_ver.context.get_value(vm.id_of("blk_2_v53")).unwrap().use_count() == 1,
         "blk_2_v53 use should be 1"
     );
     assert!(
-        func_ver
-            .context
-            .get_value(vm.id_of("blk_1_n_3"))
-            .unwrap()
-            .use_count() == 2,
+        func_ver.context.get_value(vm.id_of("blk_1_n_3")).unwrap().use_count() == 2,
         "blk_1_n_3 use should be 2"
     );
     assert!(
-        func_ver
-            .context
-            .get_value(vm.id_of("blk_1_v50"))
-            .unwrap()
-            .use_count() == 1,
+        func_ver.context.get_value(vm.id_of("blk_1_v50")).unwrap().use_count() == 1,
         "blk_1_v50 use should be 1"
     );
     assert!(
-        func_ver
-            .context
-            .get_value(vm.id_of("blk_1_v51"))
-            .unwrap()
-            .use_count() == 1,
+        func_ver.context.get_value(vm.id_of("blk_1_v51")).unwrap().use_count() == 1,
         "blk_1_v51 use should be 1"
     );
     assert!(
-        func_ver
-            .context
-            .get_value(vm.id_of("blk_1_v52"))
-            .unwrap()
-            .use_count() == 1,
+        func_ver.context.get_value(vm.id_of("blk_1_v52")).unwrap().use_count() == 1,
         "blk_1_v52 use should be 1"
     );
 }
@@ -108,10 +73,7 @@ fn test_build_tree() {
 
     let vm = Arc::new(factorial());
     let compiler = Compiler::new(
-        CompilerPolicy::new(vec![
-            Box::new(passes::DefUse::new()),
-            Box::new(passes::TreeGen::new()),
-        ]),
+        CompilerPolicy::new(vec![Box::new(passes::DefUse::new()), Box::new(passes::TreeGen::new())]),
         &vm
     );
 
@@ -119,11 +81,7 @@ fn test_build_tree() {
     let funcs = vm.funcs().read().unwrap();
     let func = funcs.get(&func_id).unwrap().read().unwrap();
     let func_vers = vm.func_vers().read().unwrap();
-    let mut func_ver = func_vers
-        .get(&func.cur_ver.unwrap())
-        .unwrap()
-        .write()
-        .unwrap();
+    let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
 
     compiler.compile(&mut func_ver);
 }
@@ -200,11 +158,7 @@ fn test_cfa_factorial() {
     let funcs = vm.funcs().read().unwrap();
     let func = funcs.get(&func_id).unwrap().read().unwrap();
     let func_vers = vm.func_vers().read().unwrap();
-    let mut func_ver = func_vers
-        .get(&func.cur_ver.unwrap())
-        .unwrap()
-        .write()
-        .unwrap();
+    let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
 
     compiler.compile(&mut func_ver);
 
@@ -253,11 +207,7 @@ fn test_cfa_sum() {
     let funcs = vm.funcs().read().unwrap();
     let func = funcs.get(&func_id).unwrap().read().unwrap();
     let func_vers = vm.func_vers().read().unwrap();
-    let mut func_ver = func_vers
-        .get(&func.cur_ver.unwrap())
-        .unwrap()
-        .write()
-        .unwrap();
+    let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
 
     compiler.compile(&mut func_ver);
 
@@ -326,11 +276,7 @@ fn test_trace_factorial() {
     let funcs = vm.funcs().read().unwrap();
     let func = funcs.get(&func_id).unwrap().read().unwrap();
     let func_vers = vm.func_vers().read().unwrap();
-    let mut func_ver = func_vers
-        .get(&func.cur_ver.unwrap())
-        .unwrap()
-        .write()
-        .unwrap();
+    let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
 
     compiler.compile(&mut func_ver);
 
@@ -360,20 +306,12 @@ fn test_trace_sum() {
     let funcs = vm.funcs().read().unwrap();
     let func = funcs.get(&func_id).unwrap().read().unwrap();
     let func_vers = vm.func_vers().read().unwrap();
-    let mut func_ver = func_vers
-        .get(&func.cur_ver.unwrap())
-        .unwrap()
-        .write()
-        .unwrap();
+    let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
 
     compiler.compile(&mut func_ver);
 
     assert!(match_trace(
         func_ver.block_trace.as_ref().unwrap(),
-        &vec![
-            vm.id_of("blk_entry"),
-            vm.id_of("blk_head"),
-            vm.id_of("blk_ret"),
-        ]
+        &vec![vm.id_of("blk_entry"), vm.id_of("blk_head"), vm.id_of("blk_ret")]
     ));
 }

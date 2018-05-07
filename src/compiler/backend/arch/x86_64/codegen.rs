@@ -12,12 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use ast::ptr::P;
 use ast::ir::*;
+use ast::ptr::P;
 use runtime::ValueLocation;
 
-use compiler::machine_code::MachineCode;
 use compiler::backend::{Mem, Reg};
+use compiler::machine_code::MachineCode;
 
 /// CodeGenerator provides an interface to emit x86_64 code for instruction selection.
 /// This allows us to implement the other parts of the compiler (mostly instruction selection)
@@ -28,8 +28,7 @@ pub trait CodeGenerator {
     /// starts code for a function
     fn start_code(&mut self, func_name: MuName, entry: MuName) -> ValueLocation;
     /// finishes code for a function
-    fn finish_code(&mut self, func_name: MuName)
-        -> (Box<MachineCode + Sync + Send>, ValueLocation);
+    fn finish_code(&mut self, func_name: MuName) -> (Box<MachineCode + Sync + Send>, ValueLocation);
 
     /// starts a sequence of linear code (no branch)
     fn start_code_sequence(&mut self);

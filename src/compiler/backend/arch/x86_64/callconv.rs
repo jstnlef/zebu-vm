@@ -1,9 +1,9 @@
 use ast::ir::*;
 use ast::ptr::*;
 use ast::types::*;
+use compiler::backend::BackendType;
 use compiler::backend::RegGroup;
 use compiler::backend::x86_64;
-use compiler::backend::BackendType;
 use utils::ByteSize;
 use vm::VM;
 
@@ -21,8 +21,8 @@ pub mod mu {
 
 pub mod swapstack {
     pub use super::c::compute_arguments;
-    pub use super::c::compute_stack_args;
     pub use super::c::compute_arguments as compute_return_values;
+    pub use super::c::compute_stack_args;
     pub use super::c::compute_stack_args as compute_stack_retvals;
 }
 
@@ -166,12 +166,8 @@ pub mod c {
 
     /// computes the area on the stack for a list of types that need to put on stack,
     /// returns a tuple of (size, offset for each values on stack)
-    pub fn compute_stack_locations(
-        stack_val_tys: &Vec<P<MuType>>,
-        vm: &VM
-    ) -> (ByteSize, Vec<ByteSize>) {
-        let (stack_arg_size, _, stack_arg_offsets) =
-            BackendType::sequential_layout(stack_val_tys, vm);
+    pub fn compute_stack_locations(stack_val_tys: &Vec<P<MuType>>, vm: &VM) -> (ByteSize, Vec<ByteSize>) {
+        let (stack_arg_size, _, stack_arg_offsets) = BackendType::sequential_layout(stack_val_tys, vm);
 
         // "The end of the input argument area shall be aligned on a 16
         // (32, if __m256 is passed on stack) byte boundary." - x86 ABI

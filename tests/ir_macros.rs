@@ -113,10 +113,7 @@ macro_rules! constdef {
 
 macro_rules! globaldef {
     (($vm: expr) < $ty: ident > $name: ident) => {
-        let $name = $vm.declare_global(
-            MuEntityHeader::named($vm.next_id(), Mu(stringify!($name))),
-            $ty.clone()
-        );
+        let $name = $vm.declare_global(MuEntityHeader::named($vm.next_id(), Mu(stringify!($name))), $ty.clone());
         $vm.set_name($name.as_entity());
     };
 }
@@ -195,10 +192,7 @@ macro_rules! define_block {
 
 macro_rules! ssa {
     (($vm: expr, $fv: ident) < $ty: ident > $name: ident) => {
-        let $name = $fv.new_ssa(
-            MuEntityHeader::named($vm.next_id(), Mu(stringify!($name))),
-            $ty.clone()
-        );
+        let $name = $fv.new_ssa(MuEntityHeader::named($vm.next_id(), Mu(stringify!($name))), $ty.clone());
         $vm.set_name($name.as_entity());
     };
 }
@@ -1160,11 +1154,7 @@ macro_rules! build_and_run_test {
             let funcs = vm.funcs().read().unwrap();
             let func = funcs.get(&func_id).unwrap().read().unwrap();
             let func_vers = vm.func_vers().read().unwrap();
-            let mut func_ver = func_vers
-                .get(&func.cur_ver.unwrap())
-                .unwrap()
-                .write()
-                .unwrap();
+            let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
 
             compiler.compile(&mut func_ver);
         }
@@ -1176,11 +1166,7 @@ macro_rules! build_and_run_test {
             let funcs = vm.funcs().read().unwrap();
             let func = funcs.get(&func_id).unwrap().read().unwrap();
             let func_vers = vm.func_vers().read().unwrap();
-            let mut func_ver = func_vers
-                .get(&func.cur_ver.unwrap())
-                .unwrap()
-                .write()
-                .unwrap();
+            let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
 
             compiler.compile(&mut func_ver);
         }
@@ -1202,11 +1188,7 @@ macro_rules! build_and_run_test {
             let funcs = vm.funcs().read().unwrap();
             let func = funcs.get(&func_id).unwrap().read().unwrap();
             let func_vers = vm.func_vers().read().unwrap();
-            let mut func_ver = func_vers
-                .get(&func.cur_ver.unwrap())
-                .unwrap()
-                .write()
-                .unwrap();
+            let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
 
             compiler.compile(&mut func_ver);
         }
@@ -1218,11 +1200,7 @@ macro_rules! build_and_run_test {
             let funcs = vm.funcs().read().unwrap();
             let func = funcs.get(&func_id).unwrap().read().unwrap();
             let func_vers = vm.func_vers().read().unwrap();
-            let mut func_ver = func_vers
-                .get(&func.cur_ver.unwrap())
-                .unwrap()
-                .write()
-                .unwrap();
+            let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
 
             compiler.compile(&mut func_ver);
         }
@@ -1244,11 +1222,7 @@ macro_rules! build_and_run_test {
             let funcs = vm.funcs().read().unwrap();
             let func = funcs.get(&func_id).unwrap().read().unwrap();
             let func_vers = vm.func_vers().read().unwrap();
-            let mut func_ver = func_vers
-                .get(&func.cur_ver.unwrap())
-                .unwrap()
-                .write()
-                .unwrap();
+            let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
 
             compiler.compile(&mut func_ver);
         }
@@ -1260,11 +1234,7 @@ macro_rules! build_and_run_test {
             let funcs = vm.funcs().read().unwrap();
             let func = funcs.get(&func_id).unwrap().read().unwrap();
             let func_vers = vm.func_vers().read().unwrap();
-            let mut func_ver = func_vers
-                .get(&func.cur_ver.unwrap())
-                .unwrap()
-                .write()
-                .unwrap();
+            let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
 
             compiler.compile(&mut func_ver);
         }
@@ -1273,11 +1243,7 @@ macro_rules! build_and_run_test {
             let funcs = vm.funcs().read().unwrap();
             let func = funcs.get(&func_id).unwrap().read().unwrap();
             let func_vers = vm.func_vers().read().unwrap();
-            let mut func_ver = func_vers
-                .get(&func.cur_ver.unwrap())
-                .unwrap()
-                .write()
-                .unwrap();
+            let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
 
             compiler.compile(&mut func_ver);
         }
@@ -1302,11 +1268,7 @@ macro_rules! build_and_run_test {
             let funcs = vm.funcs().read().unwrap();
             let func = funcs.get(&func_id).unwrap().read().unwrap();
             let func_vers = vm.func_vers().read().unwrap();
-            let mut func_ver = func_vers
-                .get(&func.cur_ver.unwrap())
-                .unwrap()
-                .write()
-                .unwrap();
+            let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
 
             compiler.compile(&mut func_ver);
         }
@@ -1318,11 +1280,7 @@ macro_rules! build_and_run_test {
             let funcs = vm.funcs().read().unwrap();
             let func = funcs.get(&func_id).unwrap().read().unwrap();
             let func_vers = vm.func_vers().read().unwrap();
-            let mut func_ver = func_vers
-                .get(&func.cur_ver.unwrap())
-                .unwrap()
-                .write()
-                .unwrap();
+            let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
 
             compiler.compile(&mut func_ver);
         }
@@ -1332,11 +1290,7 @@ macro_rules! build_and_run_test {
             let funcs = vm.funcs().read().unwrap();
             let func = funcs.get(&func_id).unwrap().read().unwrap();
             let func_vers = vm.func_vers().read().unwrap();
-            let mut func_ver = func_vers
-                .get(&func.cur_ver.unwrap())
-                .unwrap()
-                .write()
-                .unwrap();
+            let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
 
             compiler.compile(&mut func_ver);
         }

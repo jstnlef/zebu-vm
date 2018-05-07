@@ -12,10 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use utils::LinkedHashMap;
-use utils::LinkedHashSet;
 use ast::ir::*;
 use compiler::machine_code::CompiledFunction;
+use utils::LinkedHashMap;
+use utils::LinkedHashSet;
 
 pub struct ExactLiveness {
     livein: LinkedHashMap<usize, LinkedHashSet<MuID>>,

@@ -12,13 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use ast::ir::*;
 use ast::inst::*;
+use ast::ir::*;
 use ast::ptr::*;
-use vm::VM;
 use compiler::CompilerPass;
 use compiler::EPILOGUE_BLOCK_NAME;
 use std::any::Any;
+use vm::VM;
 
 /// Mu IR the client gives us may contain several RET instructions. However,
 /// internally we want a single exit point for a function. In this pass, we
@@ -73,9 +73,7 @@ impl CompilerPass for RetSink {
                     func.new_inst(Instruction {
                         hdr: MuEntityHeader::unnamed(vm.next_id()),
                         value: None,
-                        ops: args.iter()
-                            .map(|val| TreeNode::new_value(val.clone()))
-                            .collect(),
+                        ops: args.iter().map(|val| TreeNode::new_value(val.clone())).collect(),
                         v: Instruction_::Return((0..args.len()).collect())
                     }),
                 ],

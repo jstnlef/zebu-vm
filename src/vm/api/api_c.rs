@@ -142,8 +142,7 @@ pub struct CMuCtx {
     pub handle_from_uint32: extern "C" fn(*mut CMuCtx, u32, c_int) -> CMuIntValue,
     pub handle_from_sint64: extern "C" fn(*mut CMuCtx, i64, c_int) -> CMuIntValue,
     pub handle_from_uint64: extern "C" fn(*mut CMuCtx, u64, c_int) -> CMuIntValue,
-    pub handle_from_uint64s:
-        extern "C" fn(*mut CMuCtx, *mut u64, CMuArraySize, c_int) -> CMuIntValue,
+    pub handle_from_uint64s: extern "C" fn(*mut CMuCtx, *mut u64, CMuArraySize, c_int) -> CMuIntValue,
     pub handle_from_float: extern "C" fn(*mut CMuCtx, f32) -> CMuFloatValue,
     pub handle_from_double: extern "C" fn(*mut CMuCtx, f64) -> CMuDoubleValue,
     pub handle_from_ptr: extern "C" fn(*mut CMuCtx, CMuID, CMuCPtr) -> CMuUPtrValue,
@@ -170,8 +169,7 @@ pub struct CMuCtx {
     pub extract_value: extern "C" fn(*mut CMuCtx, CMuStructValue, c_int) -> CMuValue,
     pub insert_value: extern "C" fn(*mut CMuCtx, CMuStructValue, c_int, CMuValue) -> CMuStructValue,
     pub extract_element: extern "C" fn(*mut CMuCtx, CMuSeqValue, CMuIntValue) -> CMuValue,
-    pub insert_element:
-        extern "C" fn(*mut CMuCtx, CMuSeqValue, CMuIntValue, CMuValue) -> CMuSeqValue,
+    pub insert_element: extern "C" fn(*mut CMuCtx, CMuSeqValue, CMuIntValue, CMuValue) -> CMuSeqValue,
     pub new_fixed: extern "C" fn(*mut CMuCtx, CMuID) -> CMuRefValue,
     pub new_hybrid: extern "C" fn(*mut CMuCtx, CMuID, CMuIntValue) -> CMuRefValue,
     pub refcast: extern "C" fn(*mut CMuCtx, CMuGenRefValue, CMuID) -> CMuGenRefValue,
@@ -182,25 +180,15 @@ pub struct CMuCtx {
     pub get_var_part_iref: extern "C" fn(*mut CMuCtx, CMuIRefValue) -> CMuIRefValue,
     pub load: extern "C" fn(*mut CMuCtx, CMuMemOrd, CMuIRefValue) -> CMuValue,
     pub store: extern "C" fn(*mut CMuCtx, CMuMemOrd, CMuIRefValue, CMuValue),
-    pub cmpxchg: extern "C" fn(
-        *mut CMuCtx,
-        CMuMemOrd,
-        CMuMemOrd,
-        CMuBool,
-        CMuIRefValue,
-        CMuValue,
-        CMuValue,
-        *mut CMuBool
-    ) -> CMuValue,
-    pub atomicrmw:
-        extern "C" fn(*mut CMuCtx, CMuMemOrd, CMuAtomicRMWOptr, CMuIRefValue, CMuValue) -> CMuValue,
+    pub cmpxchg:
+        extern "C" fn(*mut CMuCtx, CMuMemOrd, CMuMemOrd, CMuBool, CMuIRefValue, CMuValue, CMuValue, *mut CMuBool)
+            -> CMuValue,
+    pub atomicrmw: extern "C" fn(*mut CMuCtx, CMuMemOrd, CMuAtomicRMWOptr, CMuIRefValue, CMuValue) -> CMuValue,
     pub fence: extern "C" fn(*mut CMuCtx, CMuMemOrd),
     pub new_stack: extern "C" fn(*mut CMuCtx, CMuFuncRefValue) -> CMuStackRefValue,
     pub new_thread_nor:
-        extern "C" fn(*mut CMuCtx, CMuStackRefValue, CMuRefValue, *mut CMuValue, CMuArraySize)
-            -> CMuThreadRefValue,
-    pub new_thread_exc:
-        extern "C" fn(*mut CMuCtx, CMuStackRefValue, CMuRefValue, CMuRefValue) -> CMuThreadRefValue,
+        extern "C" fn(*mut CMuCtx, CMuStackRefValue, CMuRefValue, *mut CMuValue, CMuArraySize) -> CMuThreadRefValue,
+    pub new_thread_exc: extern "C" fn(*mut CMuCtx, CMuStackRefValue, CMuRefValue, CMuRefValue) -> CMuThreadRefValue,
     pub kill_stack: extern "C" fn(*mut CMuCtx, CMuStackRefValue),
     pub set_threadlocal: extern "C" fn(*mut CMuCtx, CMuThreadRefValue, CMuRefValue),
     pub get_threadlocal: extern "C" fn(*mut CMuCtx, CMuThreadRefValue) -> CMuRefValue,
@@ -261,8 +249,7 @@ pub struct CMuIRBuilder {
     pub new_type_uptr: extern "C" fn(*mut CMuIRBuilder, CMuID, CMuTypeNode),
     pub new_type_ufuncptr: extern "C" fn(*mut CMuIRBuilder, CMuID, CMuFuncSigNode),
     pub new_type_struct: extern "C" fn(*mut CMuIRBuilder, CMuID, *mut CMuTypeNode, CMuArraySize),
-    pub new_type_hybrid:
-        extern "C" fn(*mut CMuIRBuilder, CMuID, *mut CMuTypeNode, CMuArraySize, CMuTypeNode),
+    pub new_type_hybrid: extern "C" fn(*mut CMuIRBuilder, CMuID, *mut CMuTypeNode, CMuArraySize, CMuTypeNode),
     pub new_type_array: extern "C" fn(*mut CMuIRBuilder, CMuID, CMuTypeNode, u64),
     pub new_type_vector: extern "C" fn(*mut CMuIRBuilder, CMuID, CMuTypeNode, u64),
     pub new_type_void: extern "C" fn(*mut CMuIRBuilder, CMuID),
@@ -275,29 +262,19 @@ pub struct CMuIRBuilder {
     pub new_type_stackref: extern "C" fn(*mut CMuIRBuilder, CMuID),
     pub new_type_framecursorref: extern "C" fn(*mut CMuIRBuilder, CMuID),
     pub new_type_irbuilderref: extern "C" fn(*mut CMuIRBuilder, CMuID),
-    pub new_funcsig: extern "C" fn(
-        *mut CMuIRBuilder,
-        CMuID,
-        *mut CMuTypeNode,
-        CMuArraySize,
-        *mut CMuTypeNode,
-        CMuArraySize
-    ),
+    pub new_funcsig:
+        extern "C" fn(*mut CMuIRBuilder, CMuID, *mut CMuTypeNode, CMuArraySize, *mut CMuTypeNode, CMuArraySize),
     pub new_const_int: extern "C" fn(*mut CMuIRBuilder, CMuID, CMuTypeNode, u64),
-    pub new_const_int_ex:
-        extern "C" fn(*mut CMuIRBuilder, CMuID, CMuTypeNode, *mut u64, CMuArraySize),
+    pub new_const_int_ex: extern "C" fn(*mut CMuIRBuilder, CMuID, CMuTypeNode, *mut u64, CMuArraySize),
     pub new_const_float: extern "C" fn(*mut CMuIRBuilder, CMuID, CMuTypeNode, f32),
     pub new_const_double: extern "C" fn(*mut CMuIRBuilder, CMuID, CMuTypeNode, f64),
     pub new_const_null: extern "C" fn(*mut CMuIRBuilder, CMuID, CMuTypeNode),
-    pub new_const_seq:
-        extern "C" fn(*mut CMuIRBuilder, CMuID, CMuTypeNode, *mut CMuGlobalVarNode, CMuArraySize),
+    pub new_const_seq: extern "C" fn(*mut CMuIRBuilder, CMuID, CMuTypeNode, *mut CMuGlobalVarNode, CMuArraySize),
     pub new_const_extern: extern "C" fn(*mut CMuIRBuilder, CMuID, CMuTypeNode, CMuCString),
     pub new_global_cell: extern "C" fn(*mut CMuIRBuilder, CMuID, CMuTypeNode),
     pub new_func: extern "C" fn(*mut CMuIRBuilder, CMuID, CMuFuncSigNode),
-    pub new_exp_func:
-        extern "C" fn(*mut CMuIRBuilder, CMuID, CMuFuncNode, CMuCallConv, CMuConstNode),
-    pub new_func_ver:
-        extern "C" fn(*mut CMuIRBuilder, CMuID, CMuFuncNode, *mut CMuBBNode, CMuArraySize),
+    pub new_exp_func: extern "C" fn(*mut CMuIRBuilder, CMuID, CMuFuncNode, CMuCallConv, CMuConstNode),
+    pub new_func_ver: extern "C" fn(*mut CMuIRBuilder, CMuID, CMuFuncNode, *mut CMuBBNode, CMuArraySize),
     pub new_bb: extern "C" fn(
         *mut CMuIRBuilder,
         CMuID,
@@ -308,26 +285,15 @@ pub struct CMuIRBuilder {
         *mut CMuInstNode,
         CMuArraySize
     ),
-    pub new_dest_clause:
-        extern "C" fn(*mut CMuIRBuilder, CMuID, CMuBBNode, *mut CMuVarNode, CMuArraySize),
+    pub new_dest_clause: extern "C" fn(*mut CMuIRBuilder, CMuID, CMuBBNode, *mut CMuVarNode, CMuArraySize),
     pub new_exc_clause: extern "C" fn(*mut CMuIRBuilder, CMuID, CMuDestClause, CMuDestClause),
-    pub new_keepalive_clause:
-        extern "C" fn(*mut CMuIRBuilder, CMuID, *mut CMuLocalVarNode, CMuArraySize),
+    pub new_keepalive_clause: extern "C" fn(*mut CMuIRBuilder, CMuID, *mut CMuLocalVarNode, CMuArraySize),
     pub new_csc_ret_with: extern "C" fn(*mut CMuIRBuilder, CMuID, *mut CMuTypeNode, CMuArraySize),
     pub new_csc_kill_old: extern "C" fn(*mut CMuIRBuilder, CMuID),
-    pub new_nsc_pass_values:
-        extern "C" fn(*mut CMuIRBuilder, CMuID, *mut CMuTypeNode, *mut CMuVarNode, CMuArraySize),
+    pub new_nsc_pass_values: extern "C" fn(*mut CMuIRBuilder, CMuID, *mut CMuTypeNode, *mut CMuVarNode, CMuArraySize),
     pub new_nsc_throw_exc: extern "C" fn(*mut CMuIRBuilder, CMuID, CMuVarNode),
-    pub new_binop: extern "C" fn(
-        *mut CMuIRBuilder,
-        CMuID,
-        CMuID,
-        CMuBinOptr,
-        CMuTypeNode,
-        CMuVarNode,
-        CMuVarNode,
-        CMuExcClause
-    ),
+    pub new_binop:
+        extern "C" fn(*mut CMuIRBuilder, CMuID, CMuID, CMuBinOptr, CMuTypeNode, CMuVarNode, CMuVarNode, CMuExcClause),
     pub new_binop_with_status: extern "C" fn(
         *mut CMuIRBuilder,
         CMuID,
@@ -341,37 +307,12 @@ pub struct CMuIRBuilder {
         CMuVarNode,
         CMuExcClause
     ),
-    pub new_cmp: extern "C" fn(
-        *mut CMuIRBuilder,
-        CMuID,
-        CMuID,
-        CMuCmpOptr,
-        CMuTypeNode,
-        CMuVarNode,
-        CMuVarNode
-    ),
-    pub new_conv: extern "C" fn(
-        *mut CMuIRBuilder,
-        CMuID,
-        CMuID,
-        CMuConvOptr,
-        CMuTypeNode,
-        CMuTypeNode,
-        CMuVarNode
-    ),
-    pub new_select: extern "C" fn(
-        *mut CMuIRBuilder,
-        CMuID,
-        CMuID,
-        CMuTypeNode,
-        CMuTypeNode,
-        CMuVarNode,
-        CMuVarNode,
-        CMuVarNode
-    ),
+    pub new_cmp: extern "C" fn(*mut CMuIRBuilder, CMuID, CMuID, CMuCmpOptr, CMuTypeNode, CMuVarNode, CMuVarNode),
+    pub new_conv: extern "C" fn(*mut CMuIRBuilder, CMuID, CMuID, CMuConvOptr, CMuTypeNode, CMuTypeNode, CMuVarNode),
+    pub new_select:
+        extern "C" fn(*mut CMuIRBuilder, CMuID, CMuID, CMuTypeNode, CMuTypeNode, CMuVarNode, CMuVarNode, CMuVarNode),
     pub new_branch: extern "C" fn(*mut CMuIRBuilder, CMuID, CMuDestClause),
-    pub new_branch2:
-        extern "C" fn(*mut CMuIRBuilder, CMuID, CMuVarNode, CMuDestClause, CMuDestClause),
+    pub new_branch2: extern "C" fn(*mut CMuIRBuilder, CMuID, CMuVarNode, CMuDestClause, CMuDestClause),
     pub new_switch: extern "C" fn(
         *mut CMuIRBuilder,
         CMuID,
@@ -394,114 +335,35 @@ pub struct CMuIRBuilder {
         CMuExcClause,
         CMuKeepaliveClause
     ),
-    pub new_tailcall: extern "C" fn(
-        *mut CMuIRBuilder,
-        CMuID,
-        CMuFuncSigNode,
-        CMuVarNode,
-        *mut CMuVarNode,
-        CMuArraySize
-    ),
+    pub new_tailcall:
+        extern "C" fn(*mut CMuIRBuilder, CMuID, CMuFuncSigNode, CMuVarNode, *mut CMuVarNode, CMuArraySize),
     pub new_ret: extern "C" fn(*mut CMuIRBuilder, CMuID, *mut CMuVarNode, CMuArraySize),
     pub new_throw: extern "C" fn(*mut CMuIRBuilder, CMuID, CMuVarNode),
-    pub new_extractvalue:
-        extern "C" fn(*mut CMuIRBuilder, CMuID, CMuID, CMuTypeNode, c_int, CMuVarNode),
-    pub new_insertvalue:
-        extern "C" fn(*mut CMuIRBuilder, CMuID, CMuID, CMuTypeNode, c_int, CMuVarNode, CMuVarNode),
-    pub new_extractelement: extern "C" fn(
-        *mut CMuIRBuilder,
-        CMuID,
-        CMuID,
-        CMuTypeNode,
-        CMuTypeNode,
-        CMuVarNode,
-        CMuVarNode
-    ),
-    pub new_insertelement: extern "C" fn(
-        *mut CMuIRBuilder,
-        CMuID,
-        CMuID,
-        CMuTypeNode,
-        CMuTypeNode,
-        CMuVarNode,
-        CMuVarNode,
-        CMuVarNode
-    ),
-    pub new_shufflevector: extern "C" fn(
-        *mut CMuIRBuilder,
-        CMuID,
-        CMuID,
-        CMuTypeNode,
-        CMuTypeNode,
-        CMuVarNode,
-        CMuVarNode,
-        CMuVarNode
-    ),
+    pub new_extractvalue: extern "C" fn(*mut CMuIRBuilder, CMuID, CMuID, CMuTypeNode, c_int, CMuVarNode),
+    pub new_insertvalue: extern "C" fn(*mut CMuIRBuilder, CMuID, CMuID, CMuTypeNode, c_int, CMuVarNode, CMuVarNode),
+    pub new_extractelement:
+        extern "C" fn(*mut CMuIRBuilder, CMuID, CMuID, CMuTypeNode, CMuTypeNode, CMuVarNode, CMuVarNode),
+    pub new_insertelement:
+        extern "C" fn(*mut CMuIRBuilder, CMuID, CMuID, CMuTypeNode, CMuTypeNode, CMuVarNode, CMuVarNode, CMuVarNode),
+    pub new_shufflevector:
+        extern "C" fn(*mut CMuIRBuilder, CMuID, CMuID, CMuTypeNode, CMuTypeNode, CMuVarNode, CMuVarNode, CMuVarNode),
     pub new_new: extern "C" fn(*mut CMuIRBuilder, CMuID, CMuID, CMuTypeNode, CMuExcClause),
-    pub new_newhybrid: extern "C" fn(
-        *mut CMuIRBuilder,
-        CMuID,
-        CMuID,
-        CMuTypeNode,
-        CMuTypeNode,
-        CMuVarNode,
-        CMuExcClause
-    ),
+    pub new_newhybrid:
+        extern "C" fn(*mut CMuIRBuilder, CMuID, CMuID, CMuTypeNode, CMuTypeNode, CMuVarNode, CMuExcClause),
     pub new_alloca: extern "C" fn(*mut CMuIRBuilder, CMuID, CMuID, CMuTypeNode, CMuExcClause),
-    pub new_allocahybrid: extern "C" fn(
-        *mut CMuIRBuilder,
-        CMuID,
-        CMuID,
-        CMuTypeNode,
-        CMuTypeNode,
-        CMuVarNode,
-        CMuExcClause
-    ),
+    pub new_allocahybrid:
+        extern "C" fn(*mut CMuIRBuilder, CMuID, CMuID, CMuTypeNode, CMuTypeNode, CMuVarNode, CMuExcClause),
     pub new_getiref: extern "C" fn(*mut CMuIRBuilder, CMuID, CMuID, CMuTypeNode, CMuVarNode),
-    pub new_getfieldiref:
-        extern "C" fn(*mut CMuIRBuilder, CMuID, CMuID, CMuBool, CMuTypeNode, c_int, CMuVarNode),
-    pub new_getelemiref: extern "C" fn(
-        *mut CMuIRBuilder,
-        CMuID,
-        CMuID,
-        CMuBool,
-        CMuTypeNode,
-        CMuTypeNode,
-        CMuVarNode,
-        CMuVarNode
-    ),
-    pub new_shiftiref: extern "C" fn(
-        *mut CMuIRBuilder,
-        CMuID,
-        CMuID,
-        CMuBool,
-        CMuTypeNode,
-        CMuTypeNode,
-        CMuVarNode,
-        CMuVarNode
-    ),
-    pub new_getvarpartiref:
-        extern "C" fn(*mut CMuIRBuilder, CMuID, CMuID, CMuBool, CMuTypeNode, CMuVarNode),
-    pub new_load: extern "C" fn(
-        *mut CMuIRBuilder,
-        CMuID,
-        CMuID,
-        CMuBool,
-        CMuMemOrd,
-        CMuTypeNode,
-        CMuVarNode,
-        CMuExcClause
-    ),
-    pub new_store: extern "C" fn(
-        *mut CMuIRBuilder,
-        CMuID,
-        CMuBool,
-        CMuMemOrd,
-        CMuTypeNode,
-        CMuVarNode,
-        CMuVarNode,
-        CMuExcClause
-    ),
+    pub new_getfieldiref: extern "C" fn(*mut CMuIRBuilder, CMuID, CMuID, CMuBool, CMuTypeNode, c_int, CMuVarNode),
+    pub new_getelemiref:
+        extern "C" fn(*mut CMuIRBuilder, CMuID, CMuID, CMuBool, CMuTypeNode, CMuTypeNode, CMuVarNode, CMuVarNode),
+    pub new_shiftiref:
+        extern "C" fn(*mut CMuIRBuilder, CMuID, CMuID, CMuBool, CMuTypeNode, CMuTypeNode, CMuVarNode, CMuVarNode),
+    pub new_getvarpartiref: extern "C" fn(*mut CMuIRBuilder, CMuID, CMuID, CMuBool, CMuTypeNode, CMuVarNode),
+    pub new_load:
+        extern "C" fn(*mut CMuIRBuilder, CMuID, CMuID, CMuBool, CMuMemOrd, CMuTypeNode, CMuVarNode, CMuExcClause),
+    pub new_store:
+        extern "C" fn(*mut CMuIRBuilder, CMuID, CMuBool, CMuMemOrd, CMuTypeNode, CMuVarNode, CMuVarNode, CMuExcClause),
     pub new_cmpxchg: extern "C" fn(
         *mut CMuIRBuilder,
         CMuID,
@@ -551,8 +413,7 @@ pub struct CMuIRBuilder {
         CMuDestClause,
         CMuKeepaliveClause
     ),
-    pub new_wpbranch:
-        extern "C" fn(*mut CMuIRBuilder, CMuID, CMuWPID, CMuDestClause, CMuDestClause),
+    pub new_wpbranch: extern "C" fn(*mut CMuIRBuilder, CMuID, CMuWPID, CMuDestClause, CMuDestClause),
     pub new_ccall: extern "C" fn(
         *mut CMuIRBuilder,
         CMuID,
@@ -567,15 +428,8 @@ pub struct CMuIRBuilder {
         CMuExcClause,
         CMuKeepaliveClause
     ),
-    pub new_newthread: extern "C" fn(
-        *mut CMuIRBuilder,
-        CMuID,
-        CMuID,
-        CMuVarNode,
-        CMuVarNode,
-        CMuNewStackClause,
-        CMuExcClause
-    ),
+    pub new_newthread:
+        extern "C" fn(*mut CMuIRBuilder, CMuID, CMuID, CMuVarNode, CMuVarNode, CMuNewStackClause, CMuExcClause),
     pub new_swapstack: extern "C" fn(
         *mut CMuIRBuilder,
         CMuID,

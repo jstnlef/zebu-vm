@@ -26,16 +26,16 @@ mod muctx;
 mod muirbuilder;
 mod irnodes;
 
-pub use self::muvm::*;
 pub use self::muctx::*;
 pub use self::muirbuilder::*;
+pub use self::muvm::*;
 
 mod common {
+    pub use std::ffi::CStr;
+    pub use std::ffi::CString;
     pub use std::os::raw::*;
     pub use std::ptr;
     pub use std::slice;
-    pub use std::ffi::CStr;
-    pub use std::ffi::CString;
 
     pub use std::collections::HashMap;
     pub use std::collections::HashSet;
@@ -43,15 +43,15 @@ mod common {
     pub use std::sync::Mutex;
     pub use std::sync::RwLock;
 
-    pub use super::muvm::*;
+    pub use super::irnodes::*;
     pub use super::muctx::*;
     pub use super::muirbuilder::*;
-    pub use super::irnodes::*;
+    pub use super::muvm::*;
 
     pub use super::super::super::vm::VM;
 
-    pub use super::super::api_c::*;
     pub use super::super::api_bridge::*;
+    pub use super::super::api_c::*;
 
     pub use ast::ir::*;
     pub use ast::ptr::*;

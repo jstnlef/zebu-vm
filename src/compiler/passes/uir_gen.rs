@@ -14,14 +14,14 @@
 
 #![allow(dead_code)]
 
-use compiler::CompilerPass;
 use ast::ir::*;
-use vm::VM;
+use compiler::CompilerPass;
 use std::any::Any;
+use vm::VM;
 
-use std::path;
-use std::io::prelude::*;
 use std::fs::File;
+use std::io::prelude::*;
+use std::path;
 use vm::uir_output::create_emit_directory;
 pub const EMIT_MUIR: bool = true;
 
@@ -31,11 +31,7 @@ fn create_emit_file(name: String, vm: &VM) -> File {
     file_path.push(name);
 
     match File::create(file_path.as_path()) {
-        Err(why) => panic!(
-            "couldn't create emit file {}: {}",
-            file_path.to_str().unwrap(),
-            why
-        ),
+        Err(why) => panic!("couldn't create emit file {}: {}", file_path.to_str().unwrap(), why),
         Ok(file) => file
     }
 }
@@ -66,11 +62,7 @@ fn emit_uir(suffix: &str, func_ver: &MuFunctionVersion, vm: &VM) {
     file_path.push((*func_ver_name).clone() + suffix + ".uir");
 
     let mut file = match File::create(file_path.as_path()) {
-        Err(why) => panic!(
-            "couldnt create muir dot {}: {}",
-            file_path.to_str().unwrap(),
-            why
-        ),
+        Err(why) => panic!("couldnt create muir dot {}: {}", file_path.to_str().unwrap(), why),
         Ok(file) => file
     };
     let func_name = {

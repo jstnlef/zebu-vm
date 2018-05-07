@@ -12,20 +12,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use utils;
-use utils::Word;
-use utils::Address;
 use ast::ir::*;
-use vm::VM;
 use compiler::backend::RegGroup;
+use utils;
+use utils::Address;
+use utils::Word;
+use vm::VM;
 
 use libc::*;
-use std;
-use std::fmt;
-use std::ffi::CString;
-use std::ffi::CStr;
-use std::sync::Arc;
 use rodal;
+use std;
+use std::ffi::CStr;
+use std::ffi::CString;
+use std::fmt;
+use std::sync::Arc;
 
 use libc::c_void;
 
@@ -72,19 +72,11 @@ pub fn get_function_info(function_addr: Address) -> (CName, Address) {
     }
     if !info.dli_sname.is_null() {
         (
-            Arc::new(
-                unsafe { CStr::from_ptr(info.dli_sname) }
-                    .to_str()
-                    .unwrap()
-                    .to_string()
-            ),
+            Arc::new(unsafe { CStr::from_ptr(info.dli_sname) }.to_str().unwrap().to_string()),
             Address::from_ptr(info.dli_saddr)
         )
     } else {
-        (
-            UNKNOWN_FUNCTION_NAME.clone(),
-            Address::from_ptr(info.dli_saddr)
-        )
+        (UNKNOWN_FUNCTION_NAME.clone(), Address::from_ptr(info.dli_saddr))
     }
 }
 
@@ -101,11 +93,7 @@ pub fn resolve_symbol(symbol: MuName) -> Address {
     let error = unsafe { dlerror() };
     if !error.is_null() {
         let cstr = unsafe { CStr::from_ptr(error) };
-        panic!(
-            "failed to resolve symbol: {} ({})",
-            symbol,
-            cstr.to_str().unwrap()
-        );
+        panic!("failed to resolve symbol: {} ({})", symbol, cstr.to_str().unwrap());
     }
 
     Address::from_ptr(ret)
@@ -191,7 +179,7 @@ impl ValueLocation {
     /// loads value from a ValueLocation
     pub fn load_value(&self) -> (RegGroup, Word) {
         match self {
-            &ValueLocation::Register(_, _) => unimplemented!(),
+            &ValueLocation::Register(..) => unimplemented!(),
             &ValueLocation::Direct(group, addr) => (group, unsafe { addr.load::<Word>() }),
             &ValueLocation::Indirect(group, addr) => unsafe {
                 let ptr = addr.load::<Address>();
@@ -208,12 +196,8 @@ impl ValueLocation {
     /// creates a ValueLocation from a constant, panics if impossible
     pub fn from_constant(c: Constant) -> ValueLocation {
         match c {
-            Constant::Int(int_val) => {
-                ValueLocation::Constant(RegGroup::GPR, utils::mem::u64_to_raw(int_val) as Word)
-            }
-            Constant::Float(f32_val) => {
-                ValueLocation::Constant(RegGroup::FPR, utils::mem::f32_to_raw(f32_val) as Word)
-            }
+            Constant::Int(int_val) => ValueLocation::Constant(RegGroup::GPR, utils::mem::u64_to_raw(int_val) as Word),
+            Constant::Float(f32_val) => ValueLocation::Constant(RegGroup::FPR, utils::mem::f32_to_raw(f32_val) as Word),
             Constant::Double(f64_val) => {
                 ValueLocation::Constant(RegGroup::FPR, utils::mem::f64_to_raw(f64_val) as Word)
             }
@@ -227,7 +211,7 @@ impl ValueLocation {
             &ValueLocation::Direct(_, addr) => addr,
             &ValueLocation::Indirect(_, addr) => unsafe { addr.load::<Address>() },
             &ValueLocation::Relocatable(_, ref symbol) => resolve_symbol(symbol.clone()),
-            &ValueLocation::Register(_, _) | &ValueLocation::Constant(_, _) => {
+            &ValueLocation::Register(..) | &ValueLocation::Constant(..) => {
                 panic!("a register/constant cannot be turned into address")
             }
         }
@@ -264,22 +248,12 @@ pub static mut LAST_TIME: c_ulong = 0;
 
 /// the main function for executable boot image, this function will be called from C
 #[no_mangle]
-pub extern "C" fn mu_main(
-    edata: *const (),
-    dumped_vm: *mut Arc<VM>,
-    argc: c_int,
-    argv: *const *const c_char
-) {
+pub extern "C" fn mu_main(edata: *const (), dumped_vm: *mut Arc<VM>, argc: c_int, argv: *const *const c_char) {
     VM::start_logging_env();
     debug!("mu_main() started...");
 
     // load and resume the VM
-    unsafe {
-        rodal::load_asm_bounds(
-            rodal::Address::from_ptr(dumped_vm),
-            rodal::Address::from_ptr(edata)
-        )
-    };
+    unsafe { rodal::load_asm_bounds(rodal::Address::from_ptr(dumped_vm), rodal::Address::from_ptr(edata)) };
     let vm = VM::resume_vm(dumped_vm);
     // find the primordial function as an entry
     let primordial = vm.primordial().read().unwrap();

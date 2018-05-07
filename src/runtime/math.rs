@@ -29,10 +29,10 @@ pub extern "C" fn muentry_frem64(a: f64, b: f64) -> f64 {
 }
 
 extern crate num_traits;
-use extprim::u128::u128;
 use extprim::i128::i128;
-use runtime::math::num_traits::ToPrimitive;
+use extprim::u128::u128;
 use runtime::math::num_traits::FromPrimitive;
+use runtime::math::num_traits::ToPrimitive;
 
 /// unsigned division for int128
 #[no_mangle]

@@ -12,12 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use ast::ptr::*;
-use ast::ir::*;
 use ast::inst::*;
+use ast::ir::*;
+use ast::ptr::*;
 
-use vm::VM;
 use compiler::CompilerPass;
+use vm::VM;
 
 use std::any::Any;
 
@@ -66,7 +66,7 @@ fn is_suitable_child(inst: &Instruction) -> bool {
         | CommonInst_Tr64IsRef(_)
         | CommonInst_Tr64FromFp(_)
         | CommonInst_Tr64FromInt(_)
-        | CommonInst_Tr64FromRef(_, _)
+        | CommonInst_Tr64FromRef(..)
         | CommonInst_Tr64ToFp(_)
         | CommonInst_Tr64ToInt(_)
         | CommonInst_Tr64ToRef(_)
@@ -75,8 +75,8 @@ fn is_suitable_child(inst: &Instruction) -> bool {
         | ExprCCall { .. }
         | New(_)
         | AllocA(_)
-        | NewHybrid(_, _)
-        | AllocAHybrid(_, _)
+        | NewHybrid(..)
+        | AllocAHybrid(..)
         | NewStack(_)
         | NewThread { .. }
         | NewFrameCursor(_)
@@ -91,9 +91,9 @@ fn is_suitable_child(inst: &Instruction) -> bool {
         | Store { .. }
         | GetVMThreadLocal => false,
 
-        BinOp(_, _, _) | BinOpWithStatus(_, _, _, _) | CommonInst_GetThreadLocal | Move(_) => false,
+        BinOp(..) | BinOpWithStatus(..) | CommonInst_GetThreadLocal | Move(_) => false,
 
-        CmpOp(_, _, _)
+        CmpOp(..)
         | ConvOp { .. }
         | Load { .. }
         | GetIRef(_)
@@ -186,12 +186,7 @@ impl CompilerPass for TreeGen {
     }
 }
 
-fn is_child_inst(
-    node: &P<TreeNode>,
-    cur_index: usize,
-    body: &Vec<P<TreeNode>>,
-    context: &mut FunctionContext
-) -> bool {
+fn is_child_inst(node: &P<TreeNode>, cur_index: usize, body: &Vec<P<TreeNode>>, context: &mut FunctionContext) -> bool {
     trace!("is child inst: {}", node);
     match node.v {
         TreeNode_::Instruction(ref inst) => {
@@ -208,9 +203,7 @@ fn is_child_inst(
                 // we can put the expression as a child node to its use
                 if left.len() == 1 {
                     let ref val_lhs = left[0];
-                    let lhs = context
-                        .get_value_mut(left[0].extract_ssa_id().unwrap())
-                        .unwrap();
+                    let lhs = context.get_value_mut(left[0].extract_ssa_id().unwrap()).unwrap();
                     if lhs.use_count() == 1 {
                         let next_inst_uses_lhs = {
                             if cur_index != body.len() - 1 {

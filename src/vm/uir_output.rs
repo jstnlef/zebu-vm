@@ -1,8 +1,8 @@
 use ast::ir::*;
-use vm::VM;
-use std::path;
-use std::io::prelude::*;
 use std::fs::File;
+use std::io::prelude::*;
+use std::path;
+use vm::VM;
 
 /// should emit Mu IR dot graph?
 pub const EMIT_MUIR: bool = true;
@@ -21,11 +21,7 @@ fn emit_mu_types(suffix: &str, vm: &VM) {
     file_path.push(&vm.vm_options.flag_aot_emit_dir);
     file_path.push("___types".to_string() + suffix + ".uir");
     let mut file = match File::create(file_path.as_path()) {
-        Err(why) => panic!(
-            "couldn't create mu types file {}: {}",
-            file_path.to_str().unwrap(),
-            why
-        ),
+        Err(why) => panic!("couldn't create mu types file {}: {}", file_path.to_str().unwrap(), why),
         Ok(file) => file
     };
 
@@ -40,16 +36,12 @@ fn emit_mu_types(suffix: &str, vm: &VM) {
             if ty.is_struct() {
                 write!(file, ".typedef {} = ", ty.hdr).unwrap();
 
-                let struct_ty = struct_map
-                    .get(&ty.get_struct_hybrid_tag().unwrap())
-                    .unwrap();
+                let struct_ty = struct_map.get(&ty.get_struct_hybrid_tag().unwrap()).unwrap();
                 writeln!(file, "{}", struct_ty).unwrap();
                 writeln!(file, "\n\t/*{}*/", vm.get_backend_type_info(ty.id())).unwrap();
             } else if ty.is_hybrid() {
                 write!(file, ".typedef {} = ", ty.hdr).unwrap();
-                let hybrid_ty = hybrid_map
-                    .get(&ty.get_struct_hybrid_tag().unwrap())
-                    .unwrap();
+                let hybrid_ty = hybrid_map.get(&ty.get_struct_hybrid_tag().unwrap()).unwrap();
                 writeln!(file, "{}", hybrid_ty).unwrap();
                 writeln!(file, "\n\t/*{}*/", vm.get_backend_type_info(ty.id())).unwrap();
             } else {
@@ -76,12 +68,7 @@ fn emit_mu_globals(suffix: &str, vm: &VM) {
     let global_guard = vm.globals().read().unwrap();
 
     for g in global_guard.values() {
-        writeln!(
-            file,
-            ".global {}<{}>",
-            g.name(),
-            g.ty.get_referent_ty().unwrap()
-        ).unwrap();
+        writeln!(file, ".global {}<{}>", g.name(), g.ty.get_referent_ty().unwrap()).unwrap();
     }
 }
 fn emit_mu_funcdecls(suffix: &str, vm: &VM) {

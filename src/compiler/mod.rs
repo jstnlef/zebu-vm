@@ -15,8 +15,8 @@
 extern crate hprof;
 
 use ast::ir::*;
-use vm::VM;
 use std::cell::RefCell;
+use vm::VM;
 
 /// compiler passes
 pub mod passes;

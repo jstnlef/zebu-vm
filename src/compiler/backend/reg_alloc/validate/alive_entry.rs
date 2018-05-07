@@ -14,11 +14,11 @@
 
 #![allow(dead_code)]
 
-use utils::LinkedHashMap;
-use utils::vec_utils;
 use ast::ir::*;
 use ast::ptr::*;
 use std::fmt;
+use utils::LinkedHashMap;
+use utils::vec_utils;
 
 type EntryID = usize;
 
@@ -32,11 +32,7 @@ pub struct AliveEntries {
 impl fmt::Display for AliveEntries {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         writeln!(f, "{} entries", self.inner.len()).unwrap();
-        writeln!(
-            f,
-            "| {:20} | {:20} | {:20} |",
-            "ssa", "registers", "stack slots"
-        ).unwrap();
+        writeln!(f, "| {:20} | {:20} | {:20} |", "ssa", "registers", "stack slots").unwrap();
         for entry in self.inner.values() {
             writeln!(f, "{}", entry).unwrap()
         }
@@ -387,8 +383,7 @@ impl RegisterEntry {
     pub fn intersect(&mut self, another: &Self) -> bool {
         assert!(
             (!self.has_temp() && !another.has_temp()
-                || (self.has_temp() && another.has_temp()
-                    && self.get_temp().unwrap() == another.get_temp().unwrap()))
+                || (self.has_temp() && another.has_temp() && self.get_temp().unwrap() == another.get_temp().unwrap()))
         );
 
         let mut changed = false;

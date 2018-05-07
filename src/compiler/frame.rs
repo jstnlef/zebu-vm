@@ -19,8 +19,8 @@ use compiler::backend::get_callee_saved_offset;
 use utils::ByteOffset;
 
 use std;
-use std::fmt;
 use std::collections::HashMap;
+use std::fmt;
 use vm::VM;
 
 /// Frame serves two purposes:

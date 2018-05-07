@@ -49,10 +49,7 @@ impl MuCtx {
     fn deallocate(&mut self) {
         let c_struct = self.c_struct;
         let ctx_ptr = self as *mut MuCtx;
-        debug!(
-            "Deallocating MuCtx {:?} and CMuCtx {:?}...",
-            ctx_ptr, c_struct
-        );
+        debug!("Deallocating MuCtx {:?} and CMuCtx {:?}...", ctx_ptr, c_struct);
         unsafe {
             Box::from_raw(c_struct);
             Box::from_raw(ctx_ptr);
@@ -237,12 +234,7 @@ impl MuCtx {
         panic!("Not implemented")
     }
 
-    pub fn insert_value(
-        &mut self,
-        str: &APIHandle,
-        index: c_int,
-        newval: &APIHandle
-    ) -> *const APIHandle {
+    pub fn insert_value(&mut self, str: &APIHandle, index: c_int, newval: &APIHandle) -> *const APIHandle {
         panic!("Not implemented")
     }
 
@@ -250,12 +242,7 @@ impl MuCtx {
         panic!("Not implemented")
     }
 
-    pub fn insert_element(
-        &mut self,
-        str: &APIHandle,
-        index: &APIHandle,
-        newval: &APIHandle
-    ) -> *const APIHandle {
+    pub fn insert_element(&mut self, str: &APIHandle, index: &APIHandle, newval: &APIHandle) -> *const APIHandle {
         panic!("Not implemented")
     }
 
@@ -281,11 +268,7 @@ impl MuCtx {
 
     pub fn get_field_iref(&mut self, opnd: &APIHandle, field: c_int) -> *const APIHandle {
         trace!("get_field_iref: {}, field {}", opnd, field);
-        prepare_handle(
-            self.get_mvm()
-                .vm
-                .handle_get_field_iref(opnd, field as usize)
-        )
+        prepare_handle(self.get_mvm().vm.handle_get_field_iref(opnd, field as usize))
     }
 
     pub fn get_elem_iref(&mut self, opnd: &APIHandle, index: &APIHandle) -> *const APIHandle {
@@ -310,9 +293,7 @@ impl MuCtx {
 
     pub fn store(&mut self, ord: CMuMemOrd, loc: &APIHandle, newval: &APIHandle) {
         trace!("store: {} val {}", loc, newval);
-        self.get_mvm()
-            .vm
-            .handle_store(impl_memorder(ord), loc, newval);
+        self.get_mvm().vm.handle_store(impl_memorder(ord), loc, newval);
     }
 
     pub fn cmpxchg(
@@ -476,12 +457,7 @@ impl MuCtx {
         prepare_handle(self.get_mvm().vm.handle_get_addr(loc))
     }
 
-    pub fn expose(
-        &mut self,
-        func: &APIHandle,
-        call_conv: CMuCallConv,
-        cookie: &APIHandle
-    ) -> *const APIHandle {
+    pub fn expose(&mut self, func: &APIHandle, call_conv: CMuCallConv, cookie: &APIHandle) -> *const APIHandle {
         panic!("Not implemented")
     }
 

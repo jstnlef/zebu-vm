@@ -14,12 +14,12 @@
 
 extern crate libloading;
 
-use mu::ast::ir::*;
 use mu::ast::inst::*;
+use mu::ast::ir::*;
 use mu::vm::*;
 
-use std::sync::Arc;
 use mu::utils::LinkedHashMap;
+use std::sync::Arc;
 
 #[test]
 fn test_infinite_loop1() {

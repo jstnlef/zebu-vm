@@ -39,17 +39,17 @@ pub use compiler::backend::x86_64::asm_backend::emit_context_with_reloc;
 #[cfg(feature = "aot")]
 pub use compiler::backend::x86_64::asm_backend::spill_rewrite;
 
-use utils::Address;
-use utils::ByteSize;
-use ast::ptr::P;
 use ast::ir::*;
+use ast::ptr::P;
 use ast::types::*;
 use compiler::backend::RegGroup;
-use vm::VM;
 use std::sync::Arc;
+use utils::Address;
+use utils::ByteSize;
+use vm::VM;
 
-use utils::LinkedHashMap;
 use std::collections::HashMap;
+use utils::LinkedHashMap;
 
 // number of normal callee saved registers (excluding RSP and RBP)
 pub const CALLEE_SAVED_COUNT: usize = 5;
@@ -588,11 +588,7 @@ pub fn set_return_address(frame_pointer: Address, value: Address) {
 pub fn get_callee_saved_offset(reg: MuID) -> isize {
     debug_assert!(is_callee_saved(reg) && reg != RBP.id());
 
-    let id = if reg == RBX.id() {
-        0
-    } else {
-        (reg - R12.id()) / 4 + 1
-    };
+    let id = if reg == RBX.id() { 0 } else { (reg - R12.id()) / 4 + 1 };
     (id as isize + 1) * (-8)
 }
 
@@ -616,9 +612,7 @@ pub fn is_valid_x86_imm(op: &P<Value>) -> bool {
         match int_width {
             1...32 => op.is_int_const(),
             64 => match op.v {
-                Value_::Constant(Constant::Int(val)) => {
-                    val as i64 >= i32::MIN as i64 && val as i64 <= i32::MAX as i64
-                }
+                Value_::Constant(Constant::Int(val)) => val as i64 >= i32::MIN as i64 && val as i64 <= i32::MAX as i64,
                 _ => false
             },
             128 => false,
@@ -637,9 +631,9 @@ pub fn estimate_insts_for_ir(inst: &Instruction) -> usize {
 
     match inst.v {
         // simple
-        BinOp(_, _, _) => 1,
-        BinOpWithStatus(_, _, _, _) => 2,
-        CmpOp(_, _, _) => 1,
+        BinOp(..) => 1,
+        BinOpWithStatus(..) => 2,
+        CmpOp(..) => 1,
         ConvOp { .. } => 0,
 
         CommonInst_Tr64IsFp(_)
@@ -647,7 +641,7 @@ pub fn estimate_insts_for_ir(inst: &Instruction) -> usize {
         | CommonInst_Tr64IsRef(_)
         | CommonInst_Tr64FromFp(_)
         | CommonInst_Tr64FromInt(_)
-        | CommonInst_Tr64FromRef(_, _)
+        | CommonInst_Tr64FromRef(..)
         | CommonInst_Tr64ToFp(_)
         | CommonInst_Tr64ToInt(_)
         | CommonInst_Tr64ToRef(_)
@@ -671,18 +665,14 @@ pub fn estimate_insts_for_ir(inst: &Instruction) -> usize {
         CmpXchg { .. } => 1,
         AtomicRMW { .. } => 1,
         AllocA(_) => 1,
-        AllocAHybrid(_, _) => 1,
+        AllocAHybrid(..) => 1,
         Fence(_) => 1,
 
         // memory addressing
-        GetIRef(_)
-        | GetFieldIRef { .. }
-        | GetElementIRef { .. }
-        | ShiftIRef { .. }
-        | GetVarPartIRef { .. } => 0,
+        GetIRef(_) | GetFieldIRef { .. } | GetElementIRef { .. } | ShiftIRef { .. } | GetVarPartIRef { .. } => 0,
 
         // runtime call
-        New(_) | NewHybrid(_, _) => 10,
+        New(_) | NewHybrid(..) => 10,
         NewStack(_) | NewThread { .. } | NewFrameCursor(_) => 10,
         ThreadExit => 10,
         CurrentStack => 10,

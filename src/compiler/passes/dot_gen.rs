@@ -14,14 +14,14 @@
 
 #![allow(dead_code)]
 
-use compiler::CompilerPass;
 use ast::ir::*;
-use vm::VM;
+use compiler::CompilerPass;
 use std::any::Any;
+use vm::VM;
 
-use std::path;
-use std::io::prelude::*;
 use std::fs::File;
+use std::io::prelude::*;
+use std::path;
 use vm::uir_output::{create_emit_directory, EMIT_MUIR};
 
 fn create_emit_file(name: String, vm: &VM) -> File {
@@ -30,11 +30,7 @@ fn create_emit_file(name: String, vm: &VM) -> File {
     file_path.push(name);
 
     match File::create(file_path.as_path()) {
-        Err(why) => panic!(
-            "couldn't create emit file {}: {}",
-            file_path.to_str().unwrap(),
-            why
-        ),
+        Err(why) => panic!("couldn't create emit file {}: {}", file_path.to_str().unwrap(), why),
         Ok(file) => file
     }
 }
@@ -65,11 +61,7 @@ fn emit_muir_dot(suffix: &str, func: &MuFunctionVersion, vm: &VM) {
     file_path.push((*func_name).clone() + suffix + ".dot");
 
     let mut file = match File::create(file_path.as_path()) {
-        Err(why) => panic!(
-            "couldnt create muir dot {}: {}",
-            file_path.to_str().unwrap(),
-            why
-        ),
+        Err(why) => panic!("couldnt create muir dot {}: {}", file_path.to_str().unwrap(), why),
         Ok(file) => file
     };
 
@@ -117,11 +109,7 @@ fn emit_muir_dot_inner(file: &mut File, f_name: MuName, f_content: &FunctionCont
 
         // all the instructions
         for inst in block_content.body.iter() {
-            write!(
-                file,
-                "    {}\\l",
-                escape_string(format!("{}", inst.as_inst()))
-            ).unwrap();
+            write!(file, "    {}\\l", escape_string(format!("{}", inst.as_inst()))).unwrap();
         }
 
         // "];

@@ -16,20 +16,20 @@ extern crate libloading;
 extern crate log;
 extern crate mu;
 
-use self::mu::ast::types::*;
-use self::mu::ast::ir::*;
 use self::mu::ast::inst::*;
+use self::mu::ast::ir::*;
 use self::mu::ast::op::*;
-use self::mu::vm::*;
+use self::mu::ast::types::*;
 use self::mu::linkutils;
+use self::mu::vm::*;
 use mu::utils::LinkedHashMap;
 
-use std::sync::Arc;
-use self::mu::linkutils::aot;
 use self::mu::compiler::*;
+use self::mu::linkutils::aot;
+use std::sync::Arc;
 
-use std::u64;
 use std::i64;
+use std::u64;
 
 #[test]
 fn test_udiv() {

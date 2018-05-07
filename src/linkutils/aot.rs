@@ -14,11 +14,11 @@
 
 extern crate time;
 
-use linkutils::*;
 use ast::ir::MuName;
+use compiler::backend;
+use linkutils::*;
 use runtime;
 use vm::VM;
-use compiler::backend;
 
 use std::path::PathBuf;
 use std::process::Command;
@@ -220,12 +220,7 @@ pub fn link_dylib(funcs: Vec<MuName>, out: &str, vm: &VM) -> PathBuf {
 
 /// links generated code for the given functions with a few external sources
 /// to produce a dynamic library of the given name
-pub fn link_dylib_with_extra_srcs(
-    funcs: Vec<MuName>,
-    srcs: Vec<String>,
-    out: &str,
-    vm: &VM
-) -> PathBuf {
+pub fn link_dylib_with_extra_srcs(funcs: Vec<MuName>, srcs: Vec<String>, out: &str, vm: &VM) -> PathBuf {
     let files = {
         let mut ret = vec![];
 
@@ -254,12 +249,7 @@ pub fn link_dylib_with_extra_srcs(
 }
 
 /// invokes the C compiler to link code into a dynamic library
-fn link_dylib_internal(
-    files: Vec<PathBuf>,
-    lib: &Vec<String>,
-    libpath: &Vec<String>,
-    out: PathBuf
-) -> PathBuf {
+fn link_dylib_internal(files: Vec<PathBuf>, lib: &Vec<String>, libpath: &Vec<String>, out: PathBuf) -> PathBuf {
     let mut object_files: Vec<PathBuf> = vec![];
 
     // compile each single source file
@@ -337,10 +327,7 @@ pub fn compile_fnc<'a>(fnc_name: &'static str, build_fnc: &'a Fn() -> VM) -> ll:
 
         let cur_ver = match func.cur_ver {
             Some(v) => v,
-            None => panic!(
-                "function {} does not have a defined current version",
-                fnc_name
-            )
+            None => panic!("function {} does not have a defined current version", fnc_name)
         };
 
         let func_vers = vm.func_vers().read().unwrap();
@@ -360,11 +347,7 @@ pub fn compile_fnc<'a>(fnc_name: &'static str, build_fnc: &'a Fn() -> VM) -> ll:
 /// links and loads it as a dynamic library
 /// This function is used to test compiler.
 //  TODO: should think about using make_boot_image() instead of this adhoc code (Issue #52)
-pub fn compile_fncs<'a>(
-    entry: &'static str,
-    fnc_names: Vec<&'static str>,
-    build_fnc: &'a Fn() -> VM
-) -> ll::Library {
+pub fn compile_fncs<'a>(entry: &'static str, fnc_names: Vec<&'static str>, build_fnc: &'a Fn() -> VM) -> ll::Library {
     VM::start_logging_trace();
 
     let vm = Arc::new(build_fnc());
@@ -375,11 +358,7 @@ pub fn compile_fncs<'a>(
         let funcs = vm.funcs().read().unwrap();
         let func = funcs.get(&func_id).unwrap().read().unwrap();
         let func_vers = vm.func_vers().read().unwrap();
-        let mut func_ver = func_vers
-            .get(&func.cur_ver.unwrap())
-            .unwrap()
-            .write()
-            .unwrap();
+        let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
         compiler.compile(&mut func_ver);
     }
 
@@ -409,10 +388,7 @@ fn get_path_for_mu_context(vm: &VM) -> PathBuf {
 pub fn run_test(vm: &VM, test_name: &str, tester_name: &str) {
     let output_name = test_name.to_string() + "_" + tester_name;
     let executable = link_test_primordial(
-        vec![
-            Arc::new(test_name.to_string()),
-            Arc::new(tester_name.to_string()),
-        ],
+        vec![Arc::new(test_name.to_string()), Arc::new(tester_name.to_string())],
         output_name.as_str(),
         vm
     );
@@ -502,8 +478,8 @@ pub fn run_test(vm: &VM, test_name: &str, tester_name: &str) {
         to start building the final test executable(s)
     */
 
-    use std::os::unix::io::FromRawFd;
     use std::os::unix::io::AsRawFd;
+    use std::os::unix::io::FromRawFd;
 
     let output = Command::new("rm")
         .arg("outputs.txt")
@@ -545,9 +521,9 @@ pub fn run_test(vm: &VM, test_name: &str, tester_name: &str) {
         .spawn()
         .expect("failed to RUN");
 
-    use std::thread;
     use std::io;
     use std::io::prelude::*;
+    use std::thread;
 
     let mut child_proc_finished = 0;
     let mut test_succeeded = 0;
@@ -584,8 +560,8 @@ pub fn run_test(vm: &VM, test_name: &str, tester_name: &str) {
                 continue;
             }
 
-            use std::str::FromStr;
             use std::fs::OpenOptions;
+            use std::str::FromStr;
 
             let mut lines = file_content.lines();
             let mut search_finished = 0;
@@ -604,10 +580,7 @@ pub fn run_test(vm: &VM, test_name: &str, tester_name: &str) {
             }
 
             //            let mut log_file = File::create("results_log.txt");
-            let mut log_file = OpenOptions::new()
-                .write(true)
-                .append(true)
-                .open("results_log.txt");
+            let mut log_file = OpenOptions::new().write(true).append(true).open("results_log.txt");
             let mut log_file = match log_file {
                 Ok(the_file) => the_file,
                 Err(error) => {
@@ -621,17 +594,11 @@ pub fn run_test(vm: &VM, test_name: &str, tester_name: &str) {
             log_file
                 .write_fmt(format_args!("Test time : {}\n", time::now_utc().ctime()))
                 .unwrap();
-            log_file
-                .write_fmt(format_args!("Test name : {}\n", test_name))
-                .unwrap();
+            log_file.write_fmt(format_args!("Test name : {}\n", test_name)).unwrap();
             if test_succeeded == 1 {
-                log_file
-                    .write_fmt(format_args!("Test result : PASSED\n"))
-                    .unwrap();
+                log_file.write_fmt(format_args!("Test result : PASSED\n")).unwrap();
             } else {
-                log_file
-                    .write_fmt(format_args!("Test result : FAILED\n"))
-                    .unwrap();
+                log_file.write_fmt(format_args!("Test result : FAILED\n")).unwrap();
             }
             log_file
                 .write_fmt(format_args!("******************************"))
@@ -774,8 +741,8 @@ pub fn run_test_2f(vm: &VM, test_name: &str, dep_name: &str, tester_name: &str) 
         to start building the final test executable(s)
     */
 
-    use std::os::unix::io::FromRawFd;
     use std::os::unix::io::AsRawFd;
+    use std::os::unix::io::FromRawFd;
 
     let output = Command::new("rm")
         .arg("outputs.txt")
@@ -817,9 +784,9 @@ pub fn run_test_2f(vm: &VM, test_name: &str, dep_name: &str, tester_name: &str) 
         .spawn()
         .expect("failed to RUN");
 
-    use std::thread;
     use std::io;
     use std::io::prelude::*;
+    use std::thread;
 
     let mut child_proc_finished = 0;
     let mut test_succeeded = 0;
@@ -856,8 +823,8 @@ pub fn run_test_2f(vm: &VM, test_name: &str, dep_name: &str, tester_name: &str) 
                 continue;
             }
 
-            use std::str::FromStr;
             use std::fs::OpenOptions;
+            use std::str::FromStr;
 
             let mut lines = file_content.lines();
             let mut search_finished = 0;
@@ -876,10 +843,7 @@ pub fn run_test_2f(vm: &VM, test_name: &str, dep_name: &str, tester_name: &str) 
             }
 
             //            let mut log_file = File::create("results_log.txt");
-            let mut log_file = OpenOptions::new()
-                .write(true)
-                .append(true)
-                .open("results_log.txt");
+            let mut log_file = OpenOptions::new().write(true).append(true).open("results_log.txt");
             let mut log_file = match log_file {
                 Ok(the_file) => the_file,
                 Err(error) => {
@@ -893,17 +857,11 @@ pub fn run_test_2f(vm: &VM, test_name: &str, dep_name: &str, tester_name: &str) 
             log_file
                 .write_fmt(format_args!("Test time : {}\n", time::now_utc().ctime()))
                 .unwrap();
-            log_file
-                .write_fmt(format_args!("Test name : {}\n", test_name))
-                .unwrap();
+            log_file.write_fmt(format_args!("Test name : {}\n", test_name)).unwrap();
             if test_succeeded == 1 {
-                log_file
-                    .write_fmt(format_args!("Test result : PASSED\n"))
-                    .unwrap();
+                log_file.write_fmt(format_args!("Test result : PASSED\n")).unwrap();
             } else {
-                log_file
-                    .write_fmt(format_args!("Test result : FAILED\n"))
-                    .unwrap();
+                log_file.write_fmt(format_args!("Test result : FAILED\n")).unwrap();
             }
             log_file
                 .write_fmt(format_args!("******************************"))

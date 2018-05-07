@@ -16,20 +16,20 @@ extern crate libloading;
 extern crate log;
 extern crate mu;
 
-use test_ir::test_ir::global_access;
-use test_compiler::test_call::gen_ccall_exit;
-use self::mu::compiler::*;
-use self::mu::vm::VM;
-use self::mu::runtime::thread::MuThread;
-use self::mu::ast::types::*;
-use self::mu::ast::ir::*;
 use self::mu::ast::inst::*;
+use self::mu::ast::ir::*;
 use self::mu::ast::op::*;
-use utils::Address;
-use utils::LinkedHashMap;
+use self::mu::ast::types::*;
+use self::mu::compiler::*;
+use self::mu::runtime::thread::MuThread;
+use self::mu::vm::VM;
+use mu::linkutils;
 use mu::linkutils::aot;
 use mu::vm::handle;
-use mu::linkutils;
+use test_compiler::test_call::gen_ccall_exit;
+use test_ir::test_ir::global_access;
+use utils::Address;
+use utils::LinkedHashMap;
 
 use std::sync::Arc;
 
@@ -50,11 +50,7 @@ fn test_global_access() {
         let funcs = vm.funcs().read().unwrap();
         let func = funcs.get(&func_id).unwrap().read().unwrap();
         let func_vers = vm.func_vers().read().unwrap();
-        let mut func_ver = func_vers
-            .get(&func.cur_ver.unwrap())
-            .unwrap()
-            .write()
-            .unwrap();
+        let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
 
         compiler.compile(&mut func_ver);
     }
@@ -78,11 +74,7 @@ fn test_set_global_by_api() {
         let funcs = vm.funcs().read().unwrap();
         let func = funcs.get(&func_id).unwrap().read().unwrap();
         let func_vers = vm.func_vers().read().unwrap();
-        let mut func_ver = func_vers
-            .get(&func.cur_ver.unwrap())
-            .unwrap()
-            .write()
-            .unwrap();
+        let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
 
         compiler.compile(&mut func_ver);
     }
@@ -94,10 +86,7 @@ fn test_set_global_by_api() {
 
         let uint64_10_handle = vm.handle_from_uint64(10, 64);
 
-        debug!(
-            "write {:?} to location {:?}",
-            uint64_10_handle, global_handle
-        );
+        debug!("write {:?} to location {:?}", uint64_10_handle, global_handle);
         vm.handle_store(MemoryOrder::Relaxed, &global_handle, &uint64_10_handle);
     }
 
@@ -106,8 +95,7 @@ fn test_set_global_by_api() {
     backend::emit_context(&vm);
 
     // link
-    let executable =
-        aot::link_primordial(vec![Mu("set_global_by_api")], "set_global_by_api_test", &vm);
+    let executable = aot::link_primordial(vec![Mu("set_global_by_api")], "set_global_by_api_test", &vm);
     let output = linkutils::exec_path_nocheck(executable);
 
     assert!(output.status.code().is_some());
@@ -168,11 +156,7 @@ fn test_get_global_in_dylib() {
         let funcs = vm.funcs().read().unwrap();
         let func = funcs.get(&func_id).unwrap().read().unwrap();
         let func_vers = vm.func_vers().read().unwrap();
-        let mut func_ver = func_vers
-            .get(&func.cur_ver.unwrap())
-            .unwrap()
-            .write()
-            .unwrap();
+        let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
 
         compiler.compile(&mut func_ver);
     }
@@ -184,10 +168,7 @@ fn test_get_global_in_dylib() {
 
         let uint64_10_handle = vm.handle_from_uint64(10, 64);
 
-        debug!(
-            "write {:?} to location {:?}",
-            uint64_10_handle, global_handle
-        );
+        debug!("write {:?} to location {:?}", uint64_10_handle, global_handle);
         vm.handle_store(MemoryOrder::Relaxed, &global_handle, &uint64_10_handle);
     }
 
@@ -258,11 +239,7 @@ fn test_persist_linked_list() {
         let funcs = vm.funcs().read().unwrap();
         let func = funcs.get(&func_id).unwrap().read().unwrap();
         let func_vers = vm.func_vers().read().unwrap();
-        let mut func_ver = func_vers
-            .get(&func.cur_ver.unwrap())
-            .unwrap()
-            .write()
-            .unwrap();
+        let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
 
         compiler.compile(&mut func_ver);
     }
@@ -300,11 +277,7 @@ fn test_persist_linked_list() {
         let global_id = vm.id_of("my_global");
         let global_handle = vm.handle_from_global(global_id);
 
-        vm.handle_store(
-            MemoryOrder::Relaxed,
-            &global_handle,
-            last_node.as_ref().unwrap()
-        );
+        vm.handle_store(MemoryOrder::Relaxed, &global_handle, last_node.as_ref().unwrap());
     }
 
     // then emit context (global will be put into context.s
@@ -312,11 +285,7 @@ fn test_persist_linked_list() {
     backend::emit_context(&vm);
 
     // link
-    let executable = aot::link_primordial(
-        vec![Mu("persist_linked_list")],
-        "persist_linked_list_test",
-        &vm
-    );
+    let executable = aot::link_primordial(vec![Mu("persist_linked_list")], "persist_linked_list_test", &vm);
     let output = linkutils::exec_path_nocheck(executable);
 
     assert!(output.status.code().is_some());
@@ -481,11 +450,7 @@ fn test_persist_hybrid() {
         let funcs = vm.funcs().read().unwrap();
         let func = funcs.get(&func_id).unwrap().read().unwrap();
         let func_vers = vm.func_vers().read().unwrap();
-        let mut func_ver = func_vers
-            .get(&func.cur_ver.unwrap())
-            .unwrap()
-            .write()
-            .unwrap();
+        let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
 
         compiler.compile(&mut func_ver);
     }
@@ -705,11 +670,7 @@ fn test_persist_funcref() {
         let funcs = vm.funcs().read().unwrap();
         let func = funcs.get(&func_ret42_id).unwrap().read().unwrap();
         let func_vers = vm.func_vers().read().unwrap();
-        let mut func_ver = func_vers
-            .get(&func.cur_ver.unwrap())
-            .unwrap()
-            .write()
-            .unwrap();
+        let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
 
         compiler.compile(&mut func_ver);
     }
@@ -719,11 +680,7 @@ fn test_persist_funcref() {
         let funcs = vm.funcs().read().unwrap();
         let func = funcs.get(&func_my_main_id).unwrap().read().unwrap();
         let func_vers = vm.func_vers().read().unwrap();
-        let mut func_ver = func_vers
-            .get(&func.cur_ver.unwrap())
-            .unwrap()
-            .write()
-            .unwrap();
+        let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
 
         compiler.compile(&mut func_ver);
     }
@@ -735,10 +692,7 @@ fn test_persist_funcref() {
 
         let func_ret42_handle = vm.handle_from_func(func_ret42_id);
 
-        debug!(
-            "write {:?} to location {:?}",
-            func_ret42_handle, global_handle
-        );
+        debug!("write {:?} to location {:?}", func_ret42_handle, global_handle);
         vm.handle_store(MemoryOrder::Relaxed, &global_handle, &func_ret42_handle);
     }
 

@@ -12,11 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use compiler::CompilerPass;
 use ast::ir::*;
-use vm::VM;
-use compiler::machine_code::CompiledFunction;
+use compiler::CompilerPass;
 use compiler::backend;
+use compiler::machine_code::CompiledFunction;
+use vm::VM;
 
 use std::any::Any;
 
@@ -204,11 +204,7 @@ impl PeepholeOptimization {
                             first
                         };
 
-                        trace!(
-                            "examining first valid inst {} from block {}",
-                            first_inst,
-                            dest
-                        );
+                        trace!("examining first valid inst {} from block {}", first_inst, dest);
 
                         // if first instruction is jump
                         match mc.is_jmp(first_inst) {

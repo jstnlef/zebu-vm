@@ -12,14 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use ast::ir::*;
 use ast::inst::Instruction_::*;
-use utils::vec_utils::as_str as vector_as_str;
-use vm::VM;
+use ast::ir::*;
 use compiler::CompilerPass;
+use std::any::Any;
 use utils::LinkedHashMap;
 use utils::LinkedHashSet;
-use std::any::Any;
+use utils::vec_utils::as_str as vector_as_str;
+use vm::VM;
 
 pub struct ControlFlowAnalysis {
     name: &'static str
@@ -48,12 +48,7 @@ impl CompilerPass for ControlFlowAnalysis {
         let mut visited: Vec<MuID> = vec![];
 
         // depth-first search
-        dfs(
-            func.content.as_ref().unwrap().entry,
-            &mut stack,
-            &mut visited,
-            func
-        );
+        dfs(func.content.as_ref().unwrap().entry, &mut stack, &mut visited, func);
     }
 
     #[allow(unused_variables)]
@@ -95,13 +90,7 @@ fn check_edge_kind(target: MuID, stack: &Vec<MuID>) -> EdgeKind {
 }
 
 /// creates info for a new edge (set predecessor, successors, and recursively do dfs
-fn new_edge(
-    cur: MuID,
-    edge: BlockEdge,
-    stack: &mut Vec<MuID>,
-    visited: &mut Vec<MuID>,
-    func: &mut MuFunctionVersion
-) {
+fn new_edge(cur: MuID, edge: BlockEdge, stack: &mut Vec<MuID>, visited: &mut Vec<MuID>, func: &mut MuFunctionVersion) {
     // add current block to target's predecessors
     {
         let target = func.content.as_mut().unwrap().get_block_mut(edge.target);
@@ -187,25 +176,22 @@ fn dfs(cur: MuID, stack: &mut Vec<MuID>, visited: &mut Vec<MuID>, func: &mut MuF
                         let map: LinkedHashMap<MuID, BlockEdge> = {
                             let mut ret = LinkedHashMap::new();
 
-                            let check_add_edge =
-                                |map: &mut LinkedHashMap<MuID, BlockEdge>,
-                                 target: MuID,
-                                 prob: f32| {
-                                    if map.contains_key(&target) {
-                                        let edge: &mut BlockEdge = map.get_mut(&target).unwrap();
-                                        edge.probability += prob;
-                                    } else {
-                                        map.insert(
-                                            target,
-                                            BlockEdge {
-                                                target: target,
-                                                kind: check_edge_kind(target, stack),
-                                                is_exception: false,
-                                                probability: prob
-                                            }
-                                        );
-                                    }
-                                };
+                            let check_add_edge = |map: &mut LinkedHashMap<MuID, BlockEdge>, target: MuID, prob: f32| {
+                                if map.contains_key(&target) {
+                                    let edge: &mut BlockEdge = map.get_mut(&target).unwrap();
+                                    edge.probability += prob;
+                                } else {
+                                    map.insert(
+                                        target,
+                                        BlockEdge {
+                                            target: target,
+                                            kind: check_edge_kind(target, stack),
+                                            is_exception: false,
+                                            probability: prob
+                                        }
+                                    );
+                                }
+                            };
 
                             for &(_, ref dest) in branches.iter() {
                                 let target_id = dest.target.id();
@@ -254,10 +240,7 @@ fn dfs(cur: MuID, stack: &mut Vec<MuID>, visited: &mut Vec<MuID>, func: &mut MuF
                             vec![
                                 BlockEdge {
                                     target: disable_dest.as_ref().unwrap().target.id(),
-                                    kind: check_edge_kind(
-                                        disable_dest.as_ref().unwrap().target.id(),
-                                        stack
-                                    ),
+                                    kind: check_edge_kind(disable_dest.as_ref().unwrap().target.id(), stack),
                                     is_exception: false,
                                     probability: WATCHPOINT_DISABLED_CHANCE
                                 },
@@ -265,15 +248,13 @@ fn dfs(cur: MuID, stack: &mut Vec<MuID>, visited: &mut Vec<MuID>, func: &mut MuF
                                     target: normal.target.id(),
                                     kind: check_edge_kind(normal.target.id(), stack),
                                     is_exception: false,
-                                    probability: (1.0f32 - WATCHPOINT_DISABLED_CHANCE)
-                                        * NORMAL_RESUME_CHANCE
+                                    probability: (1.0f32 - WATCHPOINT_DISABLED_CHANCE) * NORMAL_RESUME_CHANCE
                                 },
                                 BlockEdge {
                                     target: exn.target.id(),
                                     kind: check_edge_kind(exn.target.id(), stack),
                                     is_exception: true,
-                                    probability: (1.0f32 - WATCHPOINT_DISABLED_CHANCE)
-                                        * EXN_RESUME_CHANCE
+                                    probability: (1.0f32 - WATCHPOINT_DISABLED_CHANCE) * EXN_RESUME_CHANCE
                                 },
                             ]
                         }

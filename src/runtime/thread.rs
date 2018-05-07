@@ -15,23 +15,23 @@
 use ast::ir::*;
 use ast::ptr::*;
 use ast::types::*;
-use vm::VM;
 use runtime::ValueLocation;
 use runtime::mm;
+use vm::VM;
 
-use utils::ByteSize;
 use utils::Address;
-use utils::Word;
+use utils::ByteSize;
 use utils::POINTER_SIZE;
+use utils::Word;
 use utils::mem::memmap;
 use utils::mem::memsec;
 
 use std;
+use std::fmt;
 use std::ptr;
+use std::sync::Arc;
 use std::thread;
 use std::thread::JoinHandle;
-use std::sync::Arc;
-use std::fmt;
 
 /// a 4mb Mu stack
 #[cfg(not(feature = "sel4-rumprun"))]
@@ -128,16 +128,8 @@ impl MuStack {
 
         // protect the guard pages
         unsafe {
-            memsec::mprotect(
-                overflow_guard.to_ptr_mut::<u8>(),
-                PAGE_SIZE,
-                memsec::Prot::NoAccess
-            );
-            memsec::mprotect(
-                underflow_guard.to_ptr_mut::<u8>(),
-                PAGE_SIZE,
-                memsec::Prot::NoAccess
-            );
+            memsec::mprotect(overflow_guard.to_ptr_mut::<u8>(), PAGE_SIZE, memsec::Prot::NoAccess);
+            memsec::mprotect(underflow_guard.to_ptr_mut::<u8>(), PAGE_SIZE, memsec::Prot::NoAccess);
         }
 
         // Set up the stack
@@ -191,10 +183,10 @@ impl MuStack {
     /// NOTE: any changes to here need to be reflected in muthread_start_normal, which consumes
     /// those values pushed to the stack
     pub fn setup_args(&mut self, vals: Vec<ValueLocation>) {
-        use utils::Word;
-        use utils::WORD_SIZE;
-        use compiler::backend::RegGroup;
         use compiler::backend::{ARGUMENT_FPRS, ARGUMENT_GPRS};
+        use compiler::backend::RegGroup;
+        use utils::WORD_SIZE;
+        use utils::Word;
 
         let mut gpr_used = vec![];
         let mut fpr_used = vec![];
@@ -253,8 +245,8 @@ impl MuStack {
     /// prints n * POINTER_SIZE slots from the stack top (upper bound)
     /// prints either n slots or until meet the stack bottom (lower bound)
     pub fn print_stack(&self, n_entries: Option<usize>) {
-        use utils::Word;
         use utils::WORD_SIZE;
+        use utils::Word;
 
         let mut cursor = self.upper_bound - WORD_SIZE;
         let mut count = 0;
@@ -331,17 +323,9 @@ lazy_static! {
 
 impl fmt::Display for MuThread {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            f,
-            "MuThread    @{:?}: {}\n",
-            self as *const MuThread, self.hdr
-        ).unwrap();
+        write!(f, "MuThread    @{:?}: {}\n", self as *const MuThread, self.hdr).unwrap();
         write!(f, "- header    @{:?}\n", &self.hdr as *const MuEntityHeader).unwrap();
-        write!(
-            f,
-            "- allocator @{:?}\n",
-            &self.allocator as *const mm::Mutator
-        ).unwrap();
+        write!(f, "- allocator @{:?}\n", &self.allocator as *const mm::Mutator).unwrap();
         write!(f, "- stack     @{:?}\n", &self.stack as *const *mut MuStack).unwrap();
         write!(
             f,
@@ -441,16 +425,10 @@ pub fn check_result() -> c_int {
 
 impl MuThread {
     /// creates a new Mu thread with normal execution
-    pub fn new_thread_normal(
-        mut stack: Box<MuStack>,
-        threadlocal: Address,
-        vals: Vec<ValueLocation>,
-        vm: Arc<VM>
-    ) {
+    pub fn new_thread_normal(mut stack: Box<MuStack>, threadlocal: Address, vals: Vec<ValueLocation>, vm: Arc<VM>) {
         // set up arguments on stack
         stack.setup_args(vals);
-        let (join_handle, _) =
-            MuThread::mu_thread_launch(vm.next_id(), stack, threadlocal, None, vm.clone());
+        let (join_handle, _) = MuThread::mu_thread_launch(vm.next_id(), stack, threadlocal, None, vm.clone());
         vm.push_join_handle(join_handle);
     }
 
@@ -505,13 +483,7 @@ impl MuThread {
     }
 
     /// creates metadata for a Mu thread
-    fn new(
-        id: MuID,
-        allocator: mm::Mutator,
-        stack: Box<MuStack>,
-        user_tls: Address,
-        vm: Arc<VM>
-    ) -> MuThread {
+    fn new(id: MuID, allocator: mm::Mutator, stack: Box<MuStack>, user_tls: Address, vm: Arc<VM>) -> MuThread {
         MuThread {
             hdr: MuEntityHeader::unnamed(id),
             allocator,
@@ -532,23 +504,13 @@ impl MuThread {
     /// gets a reference to MuThread for current MuThread
     #[inline(always)]
     pub fn current() -> &'static MuThread {
-        unsafe {
-            muentry_get_thread_local()
-                .to_ptr::<MuThread>()
-                .as_ref()
-                .unwrap()
-        }
+        unsafe { muentry_get_thread_local().to_ptr::<MuThread>().as_ref().unwrap() }
     }
 
     /// gets a mutable reference to MuThread for current MuThread
     #[inline(always)]
     pub fn current_mut() -> &'static mut MuThread {
-        unsafe {
-            muentry_get_thread_local()
-                .to_ptr_mut::<MuThread>()
-                .as_mut()
-                .unwrap()
-        }
+        unsafe { muentry_get_thread_local().to_ptr_mut::<MuThread>().as_mut().unwrap() }
     }
 
     /// disguises current thread as a Mu thread (setup MuThread metadata, thread local for it),
@@ -682,18 +644,10 @@ pub unsafe extern "C" fn muentry_new_thread_exceptional(
 
 // Creates a new thread
 #[no_mangle]
-pub unsafe extern "C" fn muentry_new_thread_normal(
-    stack: *mut MuStack,
-    thread_local: Address
-) -> *mut MuThread {
+pub unsafe extern "C" fn muentry_new_thread_normal(stack: *mut MuStack, thread_local: Address) -> *mut MuThread {
     let vm = MuThread::current_mut().vm.clone();
-    let (join_handle, muthread) = MuThread::mu_thread_launch(
-        vm.next_id(),
-        Box::from_raw(stack),
-        thread_local,
-        None,
-        vm.clone()
-    );
+    let (join_handle, muthread) =
+        MuThread::mu_thread_launch(vm.next_id(), Box::from_raw(stack), thread_local, None, vm.clone());
     vm.push_join_handle(join_handle);
     muthread
 }

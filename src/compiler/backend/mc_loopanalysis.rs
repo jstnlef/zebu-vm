@@ -12,15 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use compiler::CompilerPass;
 use ast::ir::*;
-use vm::VM;
+use compiler::CompilerPass;
 use compiler::machine_code::*;
 use utils::LinkedHashMap;
 use utils::LinkedHashSet;
 use utils::LinkedMultiMap;
 use utils::LinkedRepeatableMultiMap;
 use utils::Tree;
+use vm::VM;
 
 use std::any::Any;
 
@@ -121,8 +121,7 @@ fn compute_dominators(func: &CompiledFunction, cfg: &MachineCFG) -> LinkedMultiM
     }
 
     // iteration - start with a work queue of all successors of entry block
-    let mut work_queue: LinkedHashSet<MuName> =
-        LinkedHashSet::from_vec(cfg.get_succs(&entry).clone());
+    let mut work_queue: LinkedHashSet<MuName> = LinkedHashSet::from_vec(cfg.get_succs(&entry).clone());
     while let Some(cur) = work_queue.pop_front() {
         let preds = cfg.get_preds(&cur);
         let new_set = {
@@ -161,9 +160,7 @@ fn compute_dominators(func: &CompiledFunction, cfg: &MachineCFG) -> LinkedMultiM
     dominators
 }
 
-fn compute_immediate_dominators(
-    dominators: &LinkedMultiMap<MuName, MuName>
-) -> LinkedHashMap<MuName, MuName> {
+fn compute_immediate_dominators(dominators: &LinkedMultiMap<MuName, MuName>) -> LinkedHashMap<MuName, MuName> {
     let mut immediate_doms: LinkedHashMap<MuName, MuName> = LinkedHashMap::new();
 
     for (n, doms) in dominators.iter() {
@@ -180,12 +177,7 @@ fn compute_immediate_dominators(
 
                 // candidate does not dominate any other dominator of n
                 for d in doms.iter() {
-                    trace_if!(
-                        TRACE_LOOPANALYSIS,
-                        "    check if {:?} doms d={:?}",
-                        candidate,
-                        d
-                    );
+                    trace_if!(TRACE_LOOPANALYSIS, "    check if {:?} doms d={:?}", candidate, d);
                     if d != candidate && d != n {
                         if is_dom(candidate, d, &dominators) {
                             trace_if!(
@@ -203,12 +195,7 @@ fn compute_immediate_dominators(
 
                 if candidate_is_idom {
                     assert!(!immediate_doms.contains_key(n));
-                    trace_if!(
-                        TRACE_LOOPANALYSIS,
-                        "    add idom({:?}) = {:?}",
-                        n,
-                        candidate
-                    );
+                    trace_if!(TRACE_LOOPANALYSIS, "    add idom({:?}) = {:?}", n, candidate);
                     immediate_doms.insert(n.clone(), candidate.clone());
                     break;
                 }
@@ -247,10 +234,7 @@ pub struct MCNaturalLoop {
 
 /// returns a set of lists, which contains blocks in the loop
 /// the first element in the list is the block header
-fn compute_loops(
-    domtree: &MCDomTree,
-    cfg: &MachineCFG
-) -> LinkedRepeatableMultiMap<MuName, MCNaturalLoop> {
+fn compute_loops(domtree: &MCDomTree, cfg: &MachineCFG) -> LinkedRepeatableMultiMap<MuName, MCNaturalLoop> {
     let mut ret = LinkedRepeatableMultiMap::new();
     let mut work_list = vec![domtree.root()];
     while !work_list.is_empty() {
@@ -267,11 +251,7 @@ fn compute_loops(
     ret
 }
 
-fn identify_loop(
-    header: &MuName,
-    domtree: &MCDomTree,
-    cfg: &MachineCFG
-) -> Option<Vec<MCNaturalLoop>> {
+fn identify_loop(header: &MuName, domtree: &MCDomTree, cfg: &MachineCFG) -> Option<Vec<MCNaturalLoop>> {
     trace_if!(TRACE_LOOPANALYSIS, "find loop with header {}", header);
     let descendants = domtree.get_all_descendants(header);
     trace_if!(TRACE_LOOPANALYSIS, "descendants: {:?}", descendants);
@@ -326,9 +306,7 @@ struct MCMergedLoop {
     blocks: LinkedHashSet<MuName>
 }
 
-fn compute_merged_loop(
-    loops: &LinkedRepeatableMultiMap<MuName, MCNaturalLoop>
-) -> LinkedHashMap<MuName, MCMergedLoop> {
+fn compute_merged_loop(loops: &LinkedRepeatableMultiMap<MuName, MCNaturalLoop>) -> LinkedHashMap<MuName, MCMergedLoop> {
     let mut merged_loops = LinkedHashMap::new();
     for (header, natural_loops) in loops.iter() {
         let mut merged_loop = MCMergedLoop {
@@ -347,10 +325,7 @@ fn compute_merged_loop(
 
 type MCLoopNestTree = Tree<MuName>;
 
-fn compute_loop_nest_tree(
-    root: MuName,
-    merged_loops: &LinkedHashMap<MuName, MCMergedLoop>
-) -> MCLoopNestTree {
+fn compute_loop_nest_tree(root: MuName, merged_loops: &LinkedHashMap<MuName, MCMergedLoop>) -> MCLoopNestTree {
     trace_if!(TRACE_LOOPANALYSIS, "compute loop-nest tree");
     let mut loop_nest_tree = Tree::new(root.clone());
 

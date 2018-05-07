@@ -19,17 +19,17 @@
 extern crate mu_gc as gc;
 pub use self::gc::*;
 
-use utils::ByteSize;
-use utils::ObjectReference;
 use ast::ir::*;
 use ast::ptr::*;
 use ast::types::*;
-use utils::*;
-use utils::math;
-use compiler::backend::RegGroup;
 use compiler::backend::BackendType;
+use compiler::backend::RegGroup;
 use runtime::ValueLocation;
 use runtime::thread::MuThread;
+use utils::*;
+use utils::ByteSize;
+use utils::ObjectReference;
+use utils::math;
 use vm::VM;
 
 /// we do not allocate hybrid into tiny object space (hybrid should be at least 32 bytes)
@@ -54,10 +54,7 @@ pub fn gen_object_encode(backend_ty: &BackendType, size: ByteSize, vm: &VM) -> O
         }
     };
 
-    debug!(
-        "ENCODE: gen_object_encode: {:?}, size: {}",
-        backend_ty, size
-    );
+    debug!("ENCODE: gen_object_encode: {:?}, size: {}", backend_ty, size);
     debug!("ENCODE: gc_ty: {}, full_gc_ty: {}", gc_tyid, full_tyid);
 
     gen_object_encode_internal(is_hybrid, gc_tyid, full_tyid, size, vm)
@@ -171,12 +168,7 @@ fn check_allocator(size: ByteSize, align: ByteSize, encode: ObjectEncode) -> Obj
 
 /// allocates and initiates an object (hybrid or other types, large or small)
 #[inline(always)]
-fn allocate(
-    allocator: *mut Mutator,
-    size: ByteSize,
-    align: ByteSize,
-    encode: ObjectEncode
-) -> ObjectReference {
+fn allocate(allocator: *mut Mutator, size: ByteSize, align: ByteSize, encode: ObjectEncode) -> ObjectReference {
     let size = math::align_up(size, POINTER_SIZE);
     // allocate
     if size <= MAX_TINY_OBJECT {
@@ -207,12 +199,7 @@ pub fn allocate_fixed(ty: P<MuType>, backendtype: Box<BackendType>, vm: &VM) -> 
 }
 
 /// allocates an object of hybrid types
-pub fn allocate_hybrid(
-    ty: P<MuType>,
-    len: usize,
-    backendtype: Box<BackendType>,
-    vm: &VM
-) -> Address {
+pub fn allocate_hybrid(ty: P<MuType>, len: usize, backendtype: Box<BackendType>, vm: &VM) -> Address {
     let size = check_hybrid_size(backendtype.size + backendtype.elem_size.unwrap() * len);
     let encode = gen_object_encode(&backendtype, size, vm);
 
@@ -221,23 +208,13 @@ pub fn allocate_hybrid(
 }
 
 /// allocates a global cell
-pub fn allocate_global(
-    iref_global: P<Value>,
-    backendtype: Box<BackendType>,
-    vm: &VM
-) -> ValueLocation {
+pub fn allocate_global(iref_global: P<Value>, backendtype: Box<BackendType>, vm: &VM) -> ValueLocation {
     let referenced_type = match iref_global.ty.get_referent_ty() {
         Some(ty) => ty,
-        None => panic!(
-            "expected global to be an iref type, found {}",
-            iref_global.ty
-        )
+        None => panic!("expected global to be an iref type, found {}", iref_global.ty)
     };
 
-    assert!(
-        !referenced_type.is_hybrid(),
-        "global cell cannot be hybrid type"
-    );
+    assert!(!referenced_type.is_hybrid(), "global cell cannot be hybrid type");
 
     let addr = allocate_fixed(referenced_type, backendtype, vm);
     ValueLocation::Direct(RegGroup::GPR, addr)

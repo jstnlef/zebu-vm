@@ -14,18 +14,18 @@
 
 extern crate libloading;
 
-use mu::ast::types::*;
-use mu::ast::ir::*;
-use mu::ast::ptr::*;
 use mu::ast::inst::*;
+use mu::ast::ir::*;
 use mu::ast::op::*;
-use mu::vm::*;
+use mu::ast::ptr::*;
+use mu::ast::types::*;
 use mu::compiler::*;
+use mu::vm::*;
 
-use std::sync::Arc;
 use mu::linkutils;
 use mu::linkutils::aot;
 use mu::utils::LinkedHashMap;
+use std::sync::Arc;
 
 // NOTE: aarch64 has 2 more parameter registers than x86-64
 // so it needs different test cases for stack arguments
@@ -43,11 +43,7 @@ fn test_ccall_exit() {
         let funcs = vm.funcs().read().unwrap();
         let func = funcs.get(&func_id).unwrap().read().unwrap();
         let func_vers = vm.func_vers().read().unwrap();
-        let mut func_ver = func_vers
-            .get(&func.cur_ver.unwrap())
-            .unwrap()
-            .write()
-            .unwrap();
+        let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
 
         compiler.compile(&mut func_ver);
     }
@@ -55,11 +51,7 @@ fn test_ccall_exit() {
     vm.set_primordial_thread(func_id, true, vec![]);
     backend::emit_context(&vm);
 
-    let executable = aot::link_primordial(
-        vec![Arc::new("ccall_exit".to_string())],
-        "ccall_exit_test",
-        &vm
-    );
+    let executable = aot::link_primordial(vec![Arc::new("ccall_exit".to_string())], "ccall_exit_test", &vm);
     let output = linkutils::exec_path_nocheck(executable);
 
     assert!(output.status.code().is_some());
@@ -1343,21 +1335,13 @@ fn test_call_int128_arg() {
 
         {
             let func = funcs.get(&func_add).unwrap().read().unwrap();
-            let mut func_ver = func_vers
-                .get(&func.cur_ver.unwrap())
-                .unwrap()
-                .write()
-                .unwrap();
+            let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
 
             compiler.compile(&mut func_ver);
         }
         {
             let func = funcs.get(&func_call).unwrap().read().unwrap();
-            let mut func_ver = func_vers
-                .get(&func.cur_ver.unwrap())
-                .unwrap()
-                .write()
-                .unwrap();
+            let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
 
             compiler.compile(&mut func_ver);
         }
@@ -1368,11 +1352,7 @@ fn test_call_int128_arg() {
         let funcs = vm.funcs().read().unwrap();
         let func = funcs.get(&func_id).unwrap().read().unwrap();
         let func_vers = vm.func_vers().read().unwrap();
-        let mut func_ver = func_vers
-            .get(&func.cur_ver.unwrap())
-            .unwrap()
-            .write()
-            .unwrap();
+        let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
 
         compiler.compile(&mut func_ver);
     }

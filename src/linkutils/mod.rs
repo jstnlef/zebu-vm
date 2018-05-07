@@ -17,14 +17,14 @@
 
 extern crate libloading as ll;
 
-use compiler::*;
 use ast::ir::*;
+use compiler::*;
 use std::sync::Arc;
 
+use std::os::unix::process::ExitStatusExt;
 use std::path::PathBuf;
 use std::process::Command;
 use std::process::Output;
-use std::os::unix::process::ExitStatusExt;
 
 /// linking utilities for ahead-of-time compilation
 pub mod aot;
@@ -92,10 +92,7 @@ fn exec_cmd_nocheck(mut cmd: Command) -> Output {
     info!("{}", String::from_utf8_lossy(&output.stderr));
 
     if output.status.signal().is_some() {
-        info!(
-            "terminated by a signal: {}",
-            output.status.signal().unwrap()
-        );
+        info!("terminated by a signal: {}", output.status.signal().unwrap());
     }
 
     output

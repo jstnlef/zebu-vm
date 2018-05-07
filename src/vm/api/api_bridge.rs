@@ -25,14 +25,14 @@
 //! Do not edit those parts manually because they will be overwritten. Instead, edit the
 //! muapi2rustapi.py script to generate the desired code.
 
-use std::ptr;
-use std::os::raw::*;
-use std::ffi::CStr;
-use std::slice;
-use std::sync::Arc;
 use super::api_c::*;
 use super::api_impl::*;
 use super::deps::*;
+use std::ffi::CStr;
+use std::os::raw::*;
+use std::ptr;
+use std::slice;
+use std::sync::Arc;
 
 // hand-written functions
 
@@ -245,11 +245,7 @@ extern "C" fn _forwarder__MuVM__name_of(mvm: *mut CMuVM, id: CMuID) -> CMuName {
     _rv_prep
 }
 
-extern "C" fn _forwarder__MuVM__set_trap_handler(
-    mvm: *mut CMuVM,
-    trap_handler: CMuTrapHandler,
-    userdata: CMuCPtr
-) {
+extern "C" fn _forwarder__MuVM__set_trap_handler(mvm: *mut CMuVM, trap_handler: CMuTrapHandler, userdata: CMuCPtr) {
     let mut _arg_mvm = from_MuVM_ptr(mvm);
     let mut _arg_trap_handler = trap_handler;
     let mut _arg_userdata = userdata;
@@ -307,11 +303,7 @@ extern "C" fn _forwarder__MuCtx__load_hail(ctx: *mut CMuCtx, buf: *mut c_char, s
     unsafe { (*_arg_ctx).load_hail(_arg_buf) };
 }
 
-extern "C" fn _forwarder__MuCtx__handle_from_sint8(
-    ctx: *mut CMuCtx,
-    num: i8,
-    len: c_int
-) -> CMuIntValue {
+extern "C" fn _forwarder__MuCtx__handle_from_sint8(ctx: *mut CMuCtx, num: i8, len: c_int) -> CMuIntValue {
     let mut _arg_ctx = from_MuCtx_ptr(ctx);
     let mut _arg_num = num;
     let mut _arg_len = len;
@@ -320,11 +312,7 @@ extern "C" fn _forwarder__MuCtx__handle_from_sint8(
     _rv_prep
 }
 
-extern "C" fn _forwarder__MuCtx__handle_from_uint8(
-    ctx: *mut CMuCtx,
-    num: u8,
-    len: c_int
-) -> CMuIntValue {
+extern "C" fn _forwarder__MuCtx__handle_from_uint8(ctx: *mut CMuCtx, num: u8, len: c_int) -> CMuIntValue {
     let mut _arg_ctx = from_MuCtx_ptr(ctx);
     let mut _arg_num = num;
     let mut _arg_len = len;
@@ -333,11 +321,7 @@ extern "C" fn _forwarder__MuCtx__handle_from_uint8(
     _rv_prep
 }
 
-extern "C" fn _forwarder__MuCtx__handle_from_sint16(
-    ctx: *mut CMuCtx,
-    num: i16,
-    len: c_int
-) -> CMuIntValue {
+extern "C" fn _forwarder__MuCtx__handle_from_sint16(ctx: *mut CMuCtx, num: i16, len: c_int) -> CMuIntValue {
     let mut _arg_ctx = from_MuCtx_ptr(ctx);
     let mut _arg_num = num;
     let mut _arg_len = len;
@@ -346,11 +330,7 @@ extern "C" fn _forwarder__MuCtx__handle_from_sint16(
     _rv_prep
 }
 
-extern "C" fn _forwarder__MuCtx__handle_from_uint16(
-    ctx: *mut CMuCtx,
-    num: u16,
-    len: c_int
-) -> CMuIntValue {
+extern "C" fn _forwarder__MuCtx__handle_from_uint16(ctx: *mut CMuCtx, num: u16, len: c_int) -> CMuIntValue {
     let mut _arg_ctx = from_MuCtx_ptr(ctx);
     let mut _arg_num = num;
     let mut _arg_len = len;
@@ -359,11 +339,7 @@ extern "C" fn _forwarder__MuCtx__handle_from_uint16(
     _rv_prep
 }
 
-extern "C" fn _forwarder__MuCtx__handle_from_sint32(
-    ctx: *mut CMuCtx,
-    num: i32,
-    len: c_int
-) -> CMuIntValue {
+extern "C" fn _forwarder__MuCtx__handle_from_sint32(ctx: *mut CMuCtx, num: i32, len: c_int) -> CMuIntValue {
     let mut _arg_ctx = from_MuCtx_ptr(ctx);
     let mut _arg_num = num;
     let mut _arg_len = len;
@@ -372,11 +348,7 @@ extern "C" fn _forwarder__MuCtx__handle_from_sint32(
     _rv_prep
 }
 
-extern "C" fn _forwarder__MuCtx__handle_from_uint32(
-    ctx: *mut CMuCtx,
-    num: u32,
-    len: c_int
-) -> CMuIntValue {
+extern "C" fn _forwarder__MuCtx__handle_from_uint32(ctx: *mut CMuCtx, num: u32, len: c_int) -> CMuIntValue {
     let mut _arg_ctx = from_MuCtx_ptr(ctx);
     let mut _arg_num = num;
     let mut _arg_len = len;
@@ -385,11 +357,7 @@ extern "C" fn _forwarder__MuCtx__handle_from_uint32(
     _rv_prep
 }
 
-extern "C" fn _forwarder__MuCtx__handle_from_sint64(
-    ctx: *mut CMuCtx,
-    num: i64,
-    len: c_int
-) -> CMuIntValue {
+extern "C" fn _forwarder__MuCtx__handle_from_sint64(ctx: *mut CMuCtx, num: i64, len: c_int) -> CMuIntValue {
     let mut _arg_ctx = from_MuCtx_ptr(ctx);
     let mut _arg_num = num;
     let mut _arg_len = len;
@@ -398,11 +366,7 @@ extern "C" fn _forwarder__MuCtx__handle_from_sint64(
     _rv_prep
 }
 
-extern "C" fn _forwarder__MuCtx__handle_from_uint64(
-    ctx: *mut CMuCtx,
-    num: u64,
-    len: c_int
-) -> CMuIntValue {
+extern "C" fn _forwarder__MuCtx__handle_from_uint64(ctx: *mut CMuCtx, num: u64, len: c_int) -> CMuIntValue {
     let mut _arg_ctx = from_MuCtx_ptr(ctx);
     let mut _arg_num = num;
     let mut _arg_len = len;
@@ -441,11 +405,7 @@ extern "C" fn _forwarder__MuCtx__handle_from_double(ctx: *mut CMuCtx, num: f64) 
     _rv_prep
 }
 
-extern "C" fn _forwarder__MuCtx__handle_from_ptr(
-    ctx: *mut CMuCtx,
-    mu_type: CMuID,
-    ptr: CMuCPtr
-) -> CMuUPtrValue {
+extern "C" fn _forwarder__MuCtx__handle_from_ptr(ctx: *mut CMuCtx, mu_type: CMuID, ptr: CMuCPtr) -> CMuUPtrValue {
     let mut _arg_ctx = from_MuCtx_ptr(ctx);
     let mut _arg_mu_type = from_MuID(mu_type);
     let mut _arg_ptr = ptr;
@@ -454,11 +414,7 @@ extern "C" fn _forwarder__MuCtx__handle_from_ptr(
     _rv_prep
 }
 
-extern "C" fn _forwarder__MuCtx__handle_from_fp(
-    ctx: *mut CMuCtx,
-    mu_type: CMuID,
-    fp: CMuCFP
-) -> CMuUFPValue {
+extern "C" fn _forwarder__MuCtx__handle_from_fp(ctx: *mut CMuCtx, mu_type: CMuID, fp: CMuCFP) -> CMuUFPValue {
     let mut _arg_ctx = from_MuCtx_ptr(ctx);
     let mut _arg_mu_type = from_MuID(mu_type);
     let mut _arg_fp = fp;
@@ -601,11 +557,7 @@ extern "C" fn _forwarder__MuCtx__delete_value(ctx: *mut CMuCtx, opnd: CMuValue) 
     unsafe { (*_arg_ctx).delete_value(_arg_opnd) };
 }
 
-extern "C" fn _forwarder__MuCtx__ref_eq(
-    ctx: *mut CMuCtx,
-    lhs: CMuGenRefValue,
-    rhs: CMuGenRefValue
-) -> CMuBool {
+extern "C" fn _forwarder__MuCtx__ref_eq(ctx: *mut CMuCtx, lhs: CMuGenRefValue, rhs: CMuGenRefValue) -> CMuBool {
     let mut _arg_ctx = from_MuCtx_ptr(ctx);
     let mut _arg_lhs = from_handle(lhs);
     let mut _arg_rhs = from_handle(rhs);
@@ -614,11 +566,7 @@ extern "C" fn _forwarder__MuCtx__ref_eq(
     _rv_prep
 }
 
-extern "C" fn _forwarder__MuCtx__ref_ult(
-    ctx: *mut CMuCtx,
-    lhs: CMuIRefValue,
-    rhs: CMuIRefValue
-) -> CMuBool {
+extern "C" fn _forwarder__MuCtx__ref_ult(ctx: *mut CMuCtx, lhs: CMuIRefValue, rhs: CMuIRefValue) -> CMuBool {
     let mut _arg_ctx = from_MuCtx_ptr(ctx);
     let mut _arg_lhs = from_handle(lhs);
     let mut _arg_rhs = from_handle(rhs);
@@ -627,11 +575,7 @@ extern "C" fn _forwarder__MuCtx__ref_ult(
     _rv_prep
 }
 
-extern "C" fn _forwarder__MuCtx__extract_value(
-    ctx: *mut CMuCtx,
-    str: CMuStructValue,
-    index: c_int
-) -> CMuValue {
+extern "C" fn _forwarder__MuCtx__extract_value(ctx: *mut CMuCtx, str: CMuStructValue, index: c_int) -> CMuValue {
     let mut _arg_ctx = from_MuCtx_ptr(ctx);
     let mut _arg_str = from_handle(str);
     let mut _arg_index = index;
@@ -655,11 +599,7 @@ extern "C" fn _forwarder__MuCtx__insert_value(
     _rv_prep
 }
 
-extern "C" fn _forwarder__MuCtx__extract_element(
-    ctx: *mut CMuCtx,
-    str: CMuSeqValue,
-    index: CMuIntValue
-) -> CMuValue {
+extern "C" fn _forwarder__MuCtx__extract_element(ctx: *mut CMuCtx, str: CMuSeqValue, index: CMuIntValue) -> CMuValue {
     let mut _arg_ctx = from_MuCtx_ptr(ctx);
     let mut _arg_str = from_handle(str);
     let mut _arg_index = from_handle(index);
@@ -691,11 +631,7 @@ extern "C" fn _forwarder__MuCtx__new_fixed(ctx: *mut CMuCtx, mu_type: CMuID) -> 
     _rv_prep
 }
 
-extern "C" fn _forwarder__MuCtx__new_hybrid(
-    ctx: *mut CMuCtx,
-    mu_type: CMuID,
-    length: CMuIntValue
-) -> CMuRefValue {
+extern "C" fn _forwarder__MuCtx__new_hybrid(ctx: *mut CMuCtx, mu_type: CMuID, length: CMuIntValue) -> CMuRefValue {
     let mut _arg_ctx = from_MuCtx_ptr(ctx);
     let mut _arg_mu_type = from_MuID(mu_type);
     let mut _arg_length = from_handle(length);
@@ -704,11 +640,7 @@ extern "C" fn _forwarder__MuCtx__new_hybrid(
     _rv_prep
 }
 
-extern "C" fn _forwarder__MuCtx__refcast(
-    ctx: *mut CMuCtx,
-    opnd: CMuGenRefValue,
-    new_type: CMuID
-) -> CMuGenRefValue {
+extern "C" fn _forwarder__MuCtx__refcast(ctx: *mut CMuCtx, opnd: CMuGenRefValue, new_type: CMuID) -> CMuGenRefValue {
     let mut _arg_ctx = from_MuCtx_ptr(ctx);
     let mut _arg_opnd = from_handle(opnd);
     let mut _arg_new_type = from_MuID(new_type);
@@ -725,11 +657,7 @@ extern "C" fn _forwarder__MuCtx__get_iref(ctx: *mut CMuCtx, opnd: CMuRefValue) -
     _rv_prep
 }
 
-extern "C" fn _forwarder__MuCtx__get_field_iref(
-    ctx: *mut CMuCtx,
-    opnd: CMuIRefValue,
-    field: c_int
-) -> CMuIRefValue {
+extern "C" fn _forwarder__MuCtx__get_field_iref(ctx: *mut CMuCtx, opnd: CMuIRefValue, field: c_int) -> CMuIRefValue {
     let mut _arg_ctx = from_MuCtx_ptr(ctx);
     let mut _arg_opnd = from_handle(opnd);
     let mut _arg_field = field;
@@ -751,11 +679,7 @@ extern "C" fn _forwarder__MuCtx__get_elem_iref(
     _rv_prep
 }
 
-extern "C" fn _forwarder__MuCtx__shift_iref(
-    ctx: *mut CMuCtx,
-    opnd: CMuIRefValue,
-    offset: CMuIntValue
-) -> CMuIRefValue {
+extern "C" fn _forwarder__MuCtx__shift_iref(ctx: *mut CMuCtx, opnd: CMuIRefValue, offset: CMuIntValue) -> CMuIRefValue {
     let mut _arg_ctx = from_MuCtx_ptr(ctx);
     let mut _arg_opnd = from_handle(opnd);
     let mut _arg_offset = from_handle(offset);
@@ -764,10 +688,7 @@ extern "C" fn _forwarder__MuCtx__shift_iref(
     _rv_prep
 }
 
-extern "C" fn _forwarder__MuCtx__get_var_part_iref(
-    ctx: *mut CMuCtx,
-    opnd: CMuIRefValue
-) -> CMuIRefValue {
+extern "C" fn _forwarder__MuCtx__get_var_part_iref(ctx: *mut CMuCtx, opnd: CMuIRefValue) -> CMuIRefValue {
     let mut _arg_ctx = from_MuCtx_ptr(ctx);
     let mut _arg_opnd = from_handle(opnd);
     let _rv = unsafe { (*_arg_ctx).get_var_part_iref(_arg_opnd) };
@@ -775,11 +696,7 @@ extern "C" fn _forwarder__MuCtx__get_var_part_iref(
     _rv_prep
 }
 
-extern "C" fn _forwarder__MuCtx__load(
-    ctx: *mut CMuCtx,
-    ord: CMuMemOrd,
-    loc: CMuIRefValue
-) -> CMuValue {
+extern "C" fn _forwarder__MuCtx__load(ctx: *mut CMuCtx, ord: CMuMemOrd, loc: CMuIRefValue) -> CMuValue {
     let mut _arg_ctx = from_MuCtx_ptr(ctx);
     let mut _arg_ord = ord;
     let mut _arg_loc = from_handle(loc);
@@ -788,12 +705,7 @@ extern "C" fn _forwarder__MuCtx__load(
     _rv_prep
 }
 
-extern "C" fn _forwarder__MuCtx__store(
-    ctx: *mut CMuCtx,
-    ord: CMuMemOrd,
-    loc: CMuIRefValue,
-    newval: CMuValue
-) {
+extern "C" fn _forwarder__MuCtx__store(ctx: *mut CMuCtx, ord: CMuMemOrd, loc: CMuIRefValue, newval: CMuValue) {
     let mut _arg_ctx = from_MuCtx_ptr(ctx);
     let mut _arg_ord = ord;
     let mut _arg_loc = from_handle(loc);
@@ -857,10 +769,7 @@ extern "C" fn _forwarder__MuCtx__fence(ctx: *mut CMuCtx, ord: CMuMemOrd) {
     unsafe { (*_arg_ctx).fence(_arg_ord) };
 }
 
-extern "C" fn _forwarder__MuCtx__new_stack(
-    ctx: *mut CMuCtx,
-    func: CMuFuncRefValue
-) -> CMuStackRefValue {
+extern "C" fn _forwarder__MuCtx__new_stack(ctx: *mut CMuCtx, func: CMuFuncRefValue) -> CMuStackRefValue {
     let mut _arg_ctx = from_MuCtx_ptr(ctx);
     let mut _arg_func = from_handle(func);
     let _rv = unsafe { (*_arg_ctx).new_stack(_arg_func) };
@@ -916,10 +825,7 @@ extern "C" fn _forwarder__MuCtx__set_threadlocal(
     unsafe { (*_arg_ctx).set_threadlocal(_arg_thread, _arg_threadlocal) };
 }
 
-extern "C" fn _forwarder__MuCtx__get_threadlocal(
-    ctx: *mut CMuCtx,
-    thread: CMuThreadRefValue
-) -> CMuRefValue {
+extern "C" fn _forwarder__MuCtx__get_threadlocal(ctx: *mut CMuCtx, thread: CMuThreadRefValue) -> CMuRefValue {
     let mut _arg_ctx = from_MuCtx_ptr(ctx);
     let mut _arg_thread = from_handle(thread);
     let _rv = unsafe { (*_arg_ctx).get_threadlocal(_arg_thread) };
@@ -927,10 +833,7 @@ extern "C" fn _forwarder__MuCtx__get_threadlocal(
     _rv_prep
 }
 
-extern "C" fn _forwarder__MuCtx__new_cursor(
-    ctx: *mut CMuCtx,
-    stack: CMuStackRefValue
-) -> CMuFCRefValue {
+extern "C" fn _forwarder__MuCtx__new_cursor(ctx: *mut CMuCtx, stack: CMuStackRefValue) -> CMuFCRefValue {
     let mut _arg_ctx = from_MuCtx_ptr(ctx);
     let mut _arg_stack = from_handle(stack);
     let _rv = unsafe { (*_arg_ctx).new_cursor(_arg_stack) };
@@ -944,10 +847,7 @@ extern "C" fn _forwarder__MuCtx__next_frame(ctx: *mut CMuCtx, cursor: CMuFCRefVa
     unsafe { (*_arg_ctx).next_frame(_arg_cursor) };
 }
 
-extern "C" fn _forwarder__MuCtx__copy_cursor(
-    ctx: *mut CMuCtx,
-    cursor: CMuFCRefValue
-) -> CMuFCRefValue {
+extern "C" fn _forwarder__MuCtx__copy_cursor(ctx: *mut CMuCtx, cursor: CMuFCRefValue) -> CMuFCRefValue {
     let mut _arg_ctx = from_MuCtx_ptr(ctx);
     let mut _arg_cursor = from_handle(cursor);
     let _rv = unsafe { (*_arg_ctx).copy_cursor(_arg_cursor) };
@@ -985,11 +885,7 @@ extern "C" fn _forwarder__MuCtx__cur_inst(ctx: *mut CMuCtx, cursor: CMuFCRefValu
     _rv_prep
 }
 
-extern "C" fn _forwarder__MuCtx__dump_keepalives(
-    ctx: *mut CMuCtx,
-    cursor: CMuFCRefValue,
-    results: *mut CMuValue
-) {
+extern "C" fn _forwarder__MuCtx__dump_keepalives(ctx: *mut CMuCtx, cursor: CMuFCRefValue, results: *mut CMuValue) {
     let mut _arg_ctx = from_MuCtx_ptr(ctx);
     let mut _arg_cursor = from_handle(cursor);
     let mut _arg_results = results;
@@ -1002,11 +898,7 @@ extern "C" fn _forwarder__MuCtx__pop_frames_to(ctx: *mut CMuCtx, cursor: CMuFCRe
     unsafe { (*_arg_ctx).pop_frames_to(_arg_cursor) };
 }
 
-extern "C" fn _forwarder__MuCtx__push_frame(
-    ctx: *mut CMuCtx,
-    stack: CMuStackRefValue,
-    func: CMuFuncRefValue
-) {
+extern "C" fn _forwarder__MuCtx__push_frame(ctx: *mut CMuCtx, stack: CMuStackRefValue, func: CMuFuncRefValue) {
     let mut _arg_ctx = from_MuCtx_ptr(ctx);
     let mut _arg_stack = from_handle(stack);
     let mut _arg_func = from_handle(func);
@@ -1037,10 +929,7 @@ extern "C" fn _forwarder__MuCtx__tr64_is_ref(ctx: *mut CMuCtx, value: CMuTagRef6
     _rv_prep
 }
 
-extern "C" fn _forwarder__MuCtx__tr64_to_fp(
-    ctx: *mut CMuCtx,
-    value: CMuTagRef64Value
-) -> CMuDoubleValue {
+extern "C" fn _forwarder__MuCtx__tr64_to_fp(ctx: *mut CMuCtx, value: CMuTagRef64Value) -> CMuDoubleValue {
     let mut _arg_ctx = from_MuCtx_ptr(ctx);
     let mut _arg_value = from_handle(value);
     let _rv = unsafe { (*_arg_ctx).tr64_to_fp(_arg_value) };
@@ -1048,10 +937,7 @@ extern "C" fn _forwarder__MuCtx__tr64_to_fp(
     _rv_prep
 }
 
-extern "C" fn _forwarder__MuCtx__tr64_to_int(
-    ctx: *mut CMuCtx,
-    value: CMuTagRef64Value
-) -> CMuIntValue {
+extern "C" fn _forwarder__MuCtx__tr64_to_int(ctx: *mut CMuCtx, value: CMuTagRef64Value) -> CMuIntValue {
     let mut _arg_ctx = from_MuCtx_ptr(ctx);
     let mut _arg_value = from_handle(value);
     let _rv = unsafe { (*_arg_ctx).tr64_to_int(_arg_value) };
@@ -1059,10 +945,7 @@ extern "C" fn _forwarder__MuCtx__tr64_to_int(
     _rv_prep
 }
 
-extern "C" fn _forwarder__MuCtx__tr64_to_ref(
-    ctx: *mut CMuCtx,
-    value: CMuTagRef64Value
-) -> CMuRefValue {
+extern "C" fn _forwarder__MuCtx__tr64_to_ref(ctx: *mut CMuCtx, value: CMuTagRef64Value) -> CMuRefValue {
     let mut _arg_ctx = from_MuCtx_ptr(ctx);
     let mut _arg_value = from_handle(value);
     let _rv = unsafe { (*_arg_ctx).tr64_to_ref(_arg_value) };
@@ -1070,10 +953,7 @@ extern "C" fn _forwarder__MuCtx__tr64_to_ref(
     _rv_prep
 }
 
-extern "C" fn _forwarder__MuCtx__tr64_to_tag(
-    ctx: *mut CMuCtx,
-    value: CMuTagRef64Value
-) -> CMuIntValue {
+extern "C" fn _forwarder__MuCtx__tr64_to_tag(ctx: *mut CMuCtx, value: CMuTagRef64Value) -> CMuIntValue {
     let mut _arg_ctx = from_MuCtx_ptr(ctx);
     let mut _arg_value = from_handle(value);
     let _rv = unsafe { (*_arg_ctx).tr64_to_tag(_arg_value) };
@@ -1081,10 +961,7 @@ extern "C" fn _forwarder__MuCtx__tr64_to_tag(
     _rv_prep
 }
 
-extern "C" fn _forwarder__MuCtx__tr64_from_fp(
-    ctx: *mut CMuCtx,
-    value: CMuDoubleValue
-) -> CMuTagRef64Value {
+extern "C" fn _forwarder__MuCtx__tr64_from_fp(ctx: *mut CMuCtx, value: CMuDoubleValue) -> CMuTagRef64Value {
     let mut _arg_ctx = from_MuCtx_ptr(ctx);
     let mut _arg_value = from_handle(value);
     let _rv = unsafe { (*_arg_ctx).tr64_from_fp(_arg_value) };
@@ -1092,10 +969,7 @@ extern "C" fn _forwarder__MuCtx__tr64_from_fp(
     _rv_prep
 }
 
-extern "C" fn _forwarder__MuCtx__tr64_from_int(
-    ctx: *mut CMuCtx,
-    value: CMuIntValue
-) -> CMuTagRef64Value {
+extern "C" fn _forwarder__MuCtx__tr64_from_int(ctx: *mut CMuCtx, value: CMuIntValue) -> CMuTagRef64Value {
     let mut _arg_ctx = from_MuCtx_ptr(ctx);
     let mut _arg_value = from_handle(value);
     let _rv = unsafe { (*_arg_ctx).tr64_from_int(_arg_value) };
@@ -1165,11 +1039,7 @@ extern "C" fn _forwarder__MuCtx__expose(
     _rv_prep
 }
 
-extern "C" fn _forwarder__MuCtx__unexpose(
-    ctx: *mut CMuCtx,
-    call_conv: CMuCallConv,
-    value: CMuValue
-) {
+extern "C" fn _forwarder__MuCtx__unexpose(ctx: *mut CMuCtx, call_conv: CMuCallConv, value: CMuValue) {
     let mut _arg_ctx = from_MuCtx_ptr(ctx);
     let mut _arg_call_conv = call_conv;
     let mut _arg_value = from_handle(value);
@@ -1260,22 +1130,14 @@ extern "C" fn _forwarder__MuIRBuilder__new_type_double(b: *mut CMuIRBuilder, id:
     unsafe { (*_arg_b).new_type_double(_arg_id) };
 }
 
-extern "C" fn _forwarder__MuIRBuilder__new_type_uptr(
-    b: *mut CMuIRBuilder,
-    id: CMuID,
-    ty: CMuTypeNode
-) {
+extern "C" fn _forwarder__MuIRBuilder__new_type_uptr(b: *mut CMuIRBuilder, id: CMuID, ty: CMuTypeNode) {
     let mut _arg_b = from_MuIRBuilder_ptr(b);
     let mut _arg_id = from_MuID(id);
     let mut _arg_ty = from_MuID(ty);
     unsafe { (*_arg_b).new_type_uptr(_arg_id, _arg_ty) };
 }
 
-extern "C" fn _forwarder__MuIRBuilder__new_type_ufuncptr(
-    b: *mut CMuIRBuilder,
-    id: CMuID,
-    sig: CMuFuncSigNode
-) {
+extern "C" fn _forwarder__MuIRBuilder__new_type_ufuncptr(b: *mut CMuIRBuilder, id: CMuID, sig: CMuFuncSigNode) {
     let mut _arg_b = from_MuIRBuilder_ptr(b);
     let mut _arg_id = from_MuID(id);
     let mut _arg_sig = from_MuID(sig);
@@ -1308,12 +1170,7 @@ extern "C" fn _forwarder__MuIRBuilder__new_type_hybrid(
     unsafe { (*_arg_b).new_type_hybrid(_arg_id, _arg_fixedtys, _arg_varty) };
 }
 
-extern "C" fn _forwarder__MuIRBuilder__new_type_array(
-    b: *mut CMuIRBuilder,
-    id: CMuID,
-    elemty: CMuTypeNode,
-    len: u64
-) {
+extern "C" fn _forwarder__MuIRBuilder__new_type_array(b: *mut CMuIRBuilder, id: CMuID, elemty: CMuTypeNode, len: u64) {
     let mut _arg_b = from_MuIRBuilder_ptr(b);
     let mut _arg_id = from_MuID(id);
     let mut _arg_elemty = from_MuID(elemty);
@@ -1321,12 +1178,7 @@ extern "C" fn _forwarder__MuIRBuilder__new_type_array(
     unsafe { (*_arg_b).new_type_array(_arg_id, _arg_elemty, _arg_len) };
 }
 
-extern "C" fn _forwarder__MuIRBuilder__new_type_vector(
-    b: *mut CMuIRBuilder,
-    id: CMuID,
-    elemty: CMuTypeNode,
-    len: u64
-) {
+extern "C" fn _forwarder__MuIRBuilder__new_type_vector(b: *mut CMuIRBuilder, id: CMuID, elemty: CMuTypeNode, len: u64) {
     let mut _arg_b = from_MuIRBuilder_ptr(b);
     let mut _arg_id = from_MuID(id);
     let mut _arg_elemty = from_MuID(elemty);
@@ -1340,44 +1192,28 @@ extern "C" fn _forwarder__MuIRBuilder__new_type_void(b: *mut CMuIRBuilder, id: C
     unsafe { (*_arg_b).new_type_void(_arg_id) };
 }
 
-extern "C" fn _forwarder__MuIRBuilder__new_type_ref(
-    b: *mut CMuIRBuilder,
-    id: CMuID,
-    ty: CMuTypeNode
-) {
+extern "C" fn _forwarder__MuIRBuilder__new_type_ref(b: *mut CMuIRBuilder, id: CMuID, ty: CMuTypeNode) {
     let mut _arg_b = from_MuIRBuilder_ptr(b);
     let mut _arg_id = from_MuID(id);
     let mut _arg_ty = from_MuID(ty);
     unsafe { (*_arg_b).new_type_ref(_arg_id, _arg_ty) };
 }
 
-extern "C" fn _forwarder__MuIRBuilder__new_type_iref(
-    b: *mut CMuIRBuilder,
-    id: CMuID,
-    ty: CMuTypeNode
-) {
+extern "C" fn _forwarder__MuIRBuilder__new_type_iref(b: *mut CMuIRBuilder, id: CMuID, ty: CMuTypeNode) {
     let mut _arg_b = from_MuIRBuilder_ptr(b);
     let mut _arg_id = from_MuID(id);
     let mut _arg_ty = from_MuID(ty);
     unsafe { (*_arg_b).new_type_iref(_arg_id, _arg_ty) };
 }
 
-extern "C" fn _forwarder__MuIRBuilder__new_type_weakref(
-    b: *mut CMuIRBuilder,
-    id: CMuID,
-    ty: CMuTypeNode
-) {
+extern "C" fn _forwarder__MuIRBuilder__new_type_weakref(b: *mut CMuIRBuilder, id: CMuID, ty: CMuTypeNode) {
     let mut _arg_b = from_MuIRBuilder_ptr(b);
     let mut _arg_id = from_MuID(id);
     let mut _arg_ty = from_MuID(ty);
     unsafe { (*_arg_b).new_type_weakref(_arg_id, _arg_ty) };
 }
 
-extern "C" fn _forwarder__MuIRBuilder__new_type_funcref(
-    b: *mut CMuIRBuilder,
-    id: CMuID,
-    sig: CMuFuncSigNode
-) {
+extern "C" fn _forwarder__MuIRBuilder__new_type_funcref(b: *mut CMuIRBuilder, id: CMuID, sig: CMuFuncSigNode) {
     let mut _arg_b = from_MuIRBuilder_ptr(b);
     let mut _arg_id = from_MuID(id);
     let mut _arg_sig = from_MuID(sig);
@@ -1429,12 +1265,7 @@ extern "C" fn _forwarder__MuIRBuilder__new_funcsig(
     unsafe { (*_arg_b).new_funcsig(_arg_id, _arg_paramtys, _arg_rettys) };
 }
 
-extern "C" fn _forwarder__MuIRBuilder__new_const_int(
-    b: *mut CMuIRBuilder,
-    id: CMuID,
-    ty: CMuTypeNode,
-    value: u64
-) {
+extern "C" fn _forwarder__MuIRBuilder__new_const_int(b: *mut CMuIRBuilder, id: CMuID, ty: CMuTypeNode, value: u64) {
     let mut _arg_b = from_MuIRBuilder_ptr(b);
     let mut _arg_id = from_MuID(id);
     let mut _arg_ty = from_MuID(ty);
@@ -1456,12 +1287,7 @@ extern "C" fn _forwarder__MuIRBuilder__new_const_int_ex(
     unsafe { (*_arg_b).new_const_int_ex(_arg_id, _arg_ty, _arg_values) };
 }
 
-extern "C" fn _forwarder__MuIRBuilder__new_const_float(
-    b: *mut CMuIRBuilder,
-    id: CMuID,
-    ty: CMuTypeNode,
-    value: f32
-) {
+extern "C" fn _forwarder__MuIRBuilder__new_const_float(b: *mut CMuIRBuilder, id: CMuID, ty: CMuTypeNode, value: f32) {
     let mut _arg_b = from_MuIRBuilder_ptr(b);
     let mut _arg_id = from_MuID(id);
     let mut _arg_ty = from_MuID(ty);
@@ -1469,12 +1295,7 @@ extern "C" fn _forwarder__MuIRBuilder__new_const_float(
     unsafe { (*_arg_b).new_const_float(_arg_id, _arg_ty, _arg_value) };
 }
 
-extern "C" fn _forwarder__MuIRBuilder__new_const_double(
-    b: *mut CMuIRBuilder,
-    id: CMuID,
-    ty: CMuTypeNode,
-    value: f64
-) {
+extern "C" fn _forwarder__MuIRBuilder__new_const_double(b: *mut CMuIRBuilder, id: CMuID, ty: CMuTypeNode, value: f64) {
     let mut _arg_b = from_MuIRBuilder_ptr(b);
     let mut _arg_id = from_MuID(id);
     let mut _arg_ty = from_MuID(ty);
@@ -1482,11 +1303,7 @@ extern "C" fn _forwarder__MuIRBuilder__new_const_double(
     unsafe { (*_arg_b).new_const_double(_arg_id, _arg_ty, _arg_value) };
 }
 
-extern "C" fn _forwarder__MuIRBuilder__new_const_null(
-    b: *mut CMuIRBuilder,
-    id: CMuID,
-    ty: CMuTypeNode
-) {
+extern "C" fn _forwarder__MuIRBuilder__new_const_null(b: *mut CMuIRBuilder, id: CMuID, ty: CMuTypeNode) {
     let mut _arg_b = from_MuIRBuilder_ptr(b);
     let mut _arg_id = from_MuID(id);
     let mut _arg_ty = from_MuID(ty);
@@ -1520,22 +1337,14 @@ extern "C" fn _forwarder__MuIRBuilder__new_const_extern(
     unsafe { (*_arg_b).new_const_extern(_arg_id, _arg_ty, _arg_symbol) };
 }
 
-extern "C" fn _forwarder__MuIRBuilder__new_global_cell(
-    b: *mut CMuIRBuilder,
-    id: CMuID,
-    ty: CMuTypeNode
-) {
+extern "C" fn _forwarder__MuIRBuilder__new_global_cell(b: *mut CMuIRBuilder, id: CMuID, ty: CMuTypeNode) {
     let mut _arg_b = from_MuIRBuilder_ptr(b);
     let mut _arg_id = from_MuID(id);
     let mut _arg_ty = from_MuID(ty);
     unsafe { (*_arg_b).new_global_cell(_arg_id, _arg_ty) };
 }
 
-extern "C" fn _forwarder__MuIRBuilder__new_func(
-    b: *mut CMuIRBuilder,
-    id: CMuID,
-    sig: CMuFuncSigNode
-) {
+extern "C" fn _forwarder__MuIRBuilder__new_func(b: *mut CMuIRBuilder, id: CMuID, sig: CMuFuncSigNode) {
     let mut _arg_b = from_MuIRBuilder_ptr(b);
     let mut _arg_id = from_MuID(id);
     let mut _arg_sig = from_MuID(sig);
@@ -1669,11 +1478,7 @@ extern "C" fn _forwarder__MuIRBuilder__new_nsc_pass_values(
     unsafe { (*_arg_b).new_nsc_pass_values(_arg_id, _arg_tys, _arg_vars) };
 }
 
-extern "C" fn _forwarder__MuIRBuilder__new_nsc_throw_exc(
-    b: *mut CMuIRBuilder,
-    id: CMuID,
-    exc: CMuVarNode
-) {
+extern "C" fn _forwarder__MuIRBuilder__new_nsc_throw_exc(b: *mut CMuIRBuilder, id: CMuID, exc: CMuVarNode) {
     let mut _arg_b = from_MuIRBuilder_ptr(b);
     let mut _arg_id = from_MuID(id);
     let mut _arg_exc = from_MuID(exc);
@@ -1765,16 +1570,7 @@ extern "C" fn _forwarder__MuIRBuilder__new_cmp(
     let mut _arg_ty = from_MuID(ty);
     let mut _arg_opnd1 = from_MuID(opnd1);
     let mut _arg_opnd2 = from_MuID(opnd2);
-    unsafe {
-        (*_arg_b).new_cmp(
-            _arg_id,
-            _arg_result_id,
-            _arg_optr,
-            _arg_ty,
-            _arg_opnd1,
-            _arg_opnd2
-        )
-    };
+    unsafe { (*_arg_b).new_cmp(_arg_id, _arg_result_id, _arg_optr, _arg_ty, _arg_opnd1, _arg_opnd2) };
 }
 
 extern "C" fn _forwarder__MuIRBuilder__new_conv(
@@ -1793,16 +1589,7 @@ extern "C" fn _forwarder__MuIRBuilder__new_conv(
     let mut _arg_from_ty = from_MuID(from_ty);
     let mut _arg_to_ty = from_MuID(to_ty);
     let mut _arg_opnd = from_MuID(opnd);
-    unsafe {
-        (*_arg_b).new_conv(
-            _arg_id,
-            _arg_result_id,
-            _arg_optr,
-            _arg_from_ty,
-            _arg_to_ty,
-            _arg_opnd
-        )
-    };
+    unsafe { (*_arg_b).new_conv(_arg_id, _arg_result_id, _arg_optr, _arg_from_ty, _arg_to_ty, _arg_opnd) };
 }
 
 extern "C" fn _forwarder__MuIRBuilder__new_select(
@@ -1836,11 +1623,7 @@ extern "C" fn _forwarder__MuIRBuilder__new_select(
     };
 }
 
-extern "C" fn _forwarder__MuIRBuilder__new_branch(
-    b: *mut CMuIRBuilder,
-    id: CMuID,
-    dest: CMuDestClause
-) {
+extern "C" fn _forwarder__MuIRBuilder__new_branch(b: *mut CMuIRBuilder, id: CMuID, dest: CMuDestClause) {
     let mut _arg_b = from_MuIRBuilder_ptr(b);
     let mut _arg_id = from_MuID(id);
     let mut _arg_dest = from_MuID(dest);
@@ -1973,9 +1756,7 @@ extern "C" fn _forwarder__MuIRBuilder__new_extractvalue(
     let mut _arg_strty = from_MuID(strty);
     let mut _arg_index = index;
     let mut _arg_opnd = from_MuID(opnd);
-    unsafe {
-        (*_arg_b).new_extractvalue(_arg_id, _arg_result_id, _arg_strty, _arg_index, _arg_opnd)
-    };
+    unsafe { (*_arg_b).new_extractvalue(_arg_id, _arg_result_id, _arg_strty, _arg_index, _arg_opnd) };
 }
 
 extern "C" fn _forwarder__MuIRBuilder__new_insertvalue(
@@ -1994,16 +1775,7 @@ extern "C" fn _forwarder__MuIRBuilder__new_insertvalue(
     let mut _arg_index = index;
     let mut _arg_opnd = from_MuID(opnd);
     let mut _arg_newval = from_MuID(newval);
-    unsafe {
-        (*_arg_b).new_insertvalue(
-            _arg_id,
-            _arg_result_id,
-            _arg_strty,
-            _arg_index,
-            _arg_opnd,
-            _arg_newval
-        )
-    };
+    unsafe { (*_arg_b).new_insertvalue(_arg_id, _arg_result_id, _arg_strty, _arg_index, _arg_opnd, _arg_newval) };
 }
 
 extern "C" fn _forwarder__MuIRBuilder__new_extractelement(
@@ -2022,16 +1794,7 @@ extern "C" fn _forwarder__MuIRBuilder__new_extractelement(
     let mut _arg_indty = from_MuID(indty);
     let mut _arg_opnd = from_MuID(opnd);
     let mut _arg_index = from_MuID(index);
-    unsafe {
-        (*_arg_b).new_extractelement(
-            _arg_id,
-            _arg_result_id,
-            _arg_seqty,
-            _arg_indty,
-            _arg_opnd,
-            _arg_index
-        )
-    };
+    unsafe { (*_arg_b).new_extractelement(_arg_id, _arg_result_id, _arg_seqty, _arg_indty, _arg_opnd, _arg_index) };
 }
 
 extern "C" fn _forwarder__MuIRBuilder__new_insertelement(
@@ -2213,16 +1976,7 @@ extern "C" fn _forwarder__MuIRBuilder__new_getfieldiref(
     let mut _arg_refty = from_MuID(refty);
     let mut _arg_index = index;
     let mut _arg_opnd = from_MuID(opnd);
-    unsafe {
-        (*_arg_b).new_getfieldiref(
-            _arg_id,
-            _arg_result_id,
-            _arg_is_ptr,
-            _arg_refty,
-            _arg_index,
-            _arg_opnd
-        )
-    };
+    unsafe { (*_arg_b).new_getfieldiref(_arg_id, _arg_result_id, _arg_is_ptr, _arg_refty, _arg_index, _arg_opnd) };
 }
 
 extern "C" fn _forwarder__MuIRBuilder__new_getelemiref(
@@ -2301,9 +2055,7 @@ extern "C" fn _forwarder__MuIRBuilder__new_getvarpartiref(
     let mut _arg_is_ptr = from_MuBool(is_ptr);
     let mut _arg_refty = from_MuID(refty);
     let mut _arg_opnd = from_MuID(opnd);
-    unsafe {
-        (*_arg_b).new_getvarpartiref(_arg_id, _arg_result_id, _arg_is_ptr, _arg_refty, _arg_opnd)
-    };
+    unsafe { (*_arg_b).new_getvarpartiref(_arg_id, _arg_result_id, _arg_is_ptr, _arg_refty, _arg_opnd) };
 }
 
 extern "C" fn _forwarder__MuIRBuilder__new_load(

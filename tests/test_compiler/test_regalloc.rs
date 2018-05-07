@@ -15,16 +15,16 @@
 extern crate libloading;
 extern crate mu;
 
+use self::mu::ast::inst::*;
+use self::mu::ast::ir::*;
+use self::mu::ast::op::*;
+use self::mu::ast::types::*;
+use self::mu::compiler::*;
+use self::mu::vm::VM;
 use mu::linkutils;
 use mu::linkutils::aot;
 use mu::utils::LinkedHashMap;
 use test_compiler::test_call::gen_ccall_exit;
-use self::mu::compiler::*;
-use self::mu::ast::ir::*;
-use self::mu::ast::types::*;
-use self::mu::ast::inst::*;
-use self::mu::ast::op::*;
-use self::mu::vm::VM;
 
 use std::sync::Arc;
 
@@ -61,22 +61,14 @@ fn test_spill1() {
         let funcs = vm.funcs().read().unwrap();
         let func = funcs.get(&func_id).unwrap().read().unwrap();
         let func_vers = vm.func_vers().read().unwrap();
-        let mut func_ver = func_vers
-            .get(&func.cur_ver.unwrap())
-            .unwrap()
-            .write()
-            .unwrap();
+        let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
 
         compiler.compile(&mut func_ver);
     }
 
     backend::emit_context(&vm);
 
-    let dylib = aot::link_dylib(
-        vec![Mu("spill1")],
-        &linkutils::get_dylib_name("spill1"),
-        &vm
-    );
+    let dylib = aot::link_dylib(vec![Mu("spill1")], &linkutils::get_dylib_name("spill1"), &vm);
 
     let lib = libloading::Library::new(dylib.as_os_str()).unwrap();
     unsafe {
@@ -286,11 +278,7 @@ fn test_simple_spill() {
         let funcs = vm.funcs().read().unwrap();
         let func = funcs.get(&func_id).unwrap().read().unwrap();
         let func_vers = vm.func_vers().read().unwrap();
-        let mut func_ver = func_vers
-            .get(&func.cur_ver.unwrap())
-            .unwrap()
-            .write()
-            .unwrap();
+        let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
 
         compiler.compile(&mut func_ver);
     }
@@ -305,11 +293,10 @@ fn test_simple_spill() {
 
     let lib = libloading::Library::new(dylib.as_os_str()).unwrap();
     unsafe {
-        let simple_spill: libloading::Symbol<unsafe extern "C" fn() -> u64> =
-            match lib.get(b"simple_spill") {
-                Ok(symbol) => symbol,
-                Err(e) => panic!("cannot find symbol simple_spill in dylib: {:?}", e)
-            };
+        let simple_spill: libloading::Symbol<unsafe extern "C" fn() -> u64> = match lib.get(b"simple_spill") {
+            Ok(symbol) => symbol,
+            Err(e) => panic!("cannot find symbol simple_spill in dylib: {:?}", e)
+        };
 
         let res = simple_spill();
         println!("simple_spill() = {}", res);
@@ -697,11 +684,7 @@ fn test_coalesce_branch_moves() {
         let funcs = vm.funcs().read().unwrap();
         let func = funcs.get(&func_id).unwrap().read().unwrap();
         let func_vers = vm.func_vers().read().unwrap();
-        let mut func_ver = func_vers
-            .get(&func.cur_ver.unwrap())
-            .unwrap()
-            .write()
-            .unwrap();
+        let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
 
         compiler.compile(&mut func_ver);
 
@@ -774,11 +757,7 @@ fn test_coalesce_args() {
         let funcs = vm.funcs().read().unwrap();
         let func = funcs.get(&func_id).unwrap().read().unwrap();
         let func_vers = vm.func_vers().read().unwrap();
-        let mut func_ver = func_vers
-            .get(&func.cur_ver.unwrap())
-            .unwrap()
-            .write()
-            .unwrap();
+        let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
 
         compiler.compile(&mut func_ver);
 
@@ -844,11 +823,7 @@ fn test_coalesce_branch2_moves() {
         let funcs = vm.funcs().read().unwrap();
         let func = funcs.get(&func_id).unwrap().read().unwrap();
         let func_vers = vm.func_vers().read().unwrap();
-        let mut func_ver = func_vers
-            .get(&func.cur_ver.unwrap())
-            .unwrap()
-            .write()
-            .unwrap();
+        let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
 
         compiler.compile(&mut func_ver);
 
@@ -875,10 +850,7 @@ fn test_coalesce_branch2_moves() {
             unsafe extern "C" fn(u64, u64, u64, u64, u64, u64) -> u64
         > = match lib.get(b"coalesce_branch2_moves") {
             Ok(symbol) => symbol,
-            Err(e) => panic!(
-                "cannot find symbol coalesce_branch2_moves in dylib: {:?}",
-                e
-            )
+            Err(e) => panic!("cannot find symbol coalesce_branch2_moves in dylib: {:?}", e)
         };
 
         let res = coalesce_branch2_moves(1, 1, 10, 10, 0, 0);
@@ -997,25 +969,13 @@ fn test_preserve_caller_saved_simple() {
 
         {
             let func = funcs.get(&func_foo).unwrap().read().unwrap();
-            let mut func_ver = func_vers
-                .get(&func.cur_ver.unwrap())
-                .unwrap()
-                .write()
-                .unwrap();
+            let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
 
             compiler.compile(&mut func_ver);
         }
         {
-            let func = funcs
-                .get(&func_preserve_caller_saved_simple)
-                .unwrap()
-                .read()
-                .unwrap();
-            let mut func_ver = func_vers
-                .get(&func.cur_ver.unwrap())
-                .unwrap()
-                .write()
-                .unwrap();
+            let func = funcs.get(&func_preserve_caller_saved_simple).unwrap().read().unwrap();
+            let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
 
             compiler.compile(&mut func_ver);
         }
@@ -1222,25 +1182,13 @@ fn test_preserve_caller_saved_call_args() {
 
         {
             let func = funcs.get(&func_foo).unwrap().read().unwrap();
-            let mut func_ver = func_vers
-                .get(&func.cur_ver.unwrap())
-                .unwrap()
-                .write()
-                .unwrap();
+            let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
 
             compiler.compile(&mut func_ver);
         }
         {
-            let func = funcs
-                .get(&func_preserve_caller_saved_simple)
-                .unwrap()
-                .read()
-                .unwrap();
-            let mut func_ver = func_vers
-                .get(&func.cur_ver.unwrap())
-                .unwrap()
-                .write()
-                .unwrap();
+            let func = funcs.get(&func_preserve_caller_saved_simple).unwrap().read().unwrap();
+            let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
 
             compiler.compile(&mut func_ver);
         }
@@ -1458,30 +1406,21 @@ fn test_spill_int8() {
         let funcs = vm.funcs().read().unwrap();
         let func = funcs.get(&func_id).unwrap().read().unwrap();
         let func_vers = vm.func_vers().read().unwrap();
-        let mut func_ver = func_vers
-            .get(&func.cur_ver.unwrap())
-            .unwrap()
-            .write()
-            .unwrap();
+        let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
 
         compiler.compile(&mut func_ver);
     }
 
     backend::emit_context(&vm);
 
-    let dylib = aot::link_dylib(
-        vec![Mu("spill_int8")],
-        &linkutils::get_dylib_name("spill_int8"),
-        &vm
-    );
+    let dylib = aot::link_dylib(vec![Mu("spill_int8")], &linkutils::get_dylib_name("spill_int8"), &vm);
 
     let lib = libloading::Library::new(dylib.as_os_str()).unwrap();
     unsafe {
-        let spill_int8: libloading::Symbol<unsafe extern "C" fn() -> u8> =
-            match lib.get(b"spill_int8") {
-                Ok(symbol) => symbol,
-                Err(e) => panic!("cannot find symbol spill_int8 in dylib: {:?}", e)
-            };
+        let spill_int8: libloading::Symbol<unsafe extern "C" fn() -> u8> = match lib.get(b"spill_int8") {
+            Ok(symbol) => symbol,
+            Err(e) => panic!("cannot find symbol spill_int8 in dylib: {:?}", e)
+        };
 
         let res = spill_int8();
         println!("spill_int8() = {}", res);
@@ -2063,11 +2002,7 @@ fn test_coalesce_unusable_reg() {
         let funcs = vm.funcs().read().unwrap();
         let func = funcs.get(&func_id).unwrap().read().unwrap();
         let func_vers = vm.func_vers().read().unwrap();
-        let mut func_ver = func_vers
-            .get(&func.cur_ver.unwrap())
-            .unwrap()
-            .write()
-            .unwrap();
+        let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
 
         compiler.compile(&mut func_ver);
 

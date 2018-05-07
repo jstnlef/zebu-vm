@@ -16,13 +16,12 @@ use ast::ir::*;
 use ast::ptr::P;
 use runtime::ValueLocation;
 
-use compiler::machine_code::MachineCode;
 use compiler::backend::{Mem, Reg};
+use compiler::machine_code::MachineCode;
 
 pub trait CodeGenerator {
     fn start_code(&mut self, func_name: MuName, entry: MuName) -> ValueLocation;
-    fn finish_code(&mut self, func_name: MuName)
-        -> (Box<MachineCode + Sync + Send>, ValueLocation);
+    fn finish_code(&mut self, func_name: MuName) -> (Box<MachineCode + Sync + Send>, ValueLocation);
 
     // generate unnamed sequence of linear code (no branch)
     fn start_code_sequence(&mut self);
@@ -89,12 +88,7 @@ pub trait CodeGenerator {
     fn emit_ldp(&mut self, dest1: Reg, dest2: Reg /*GPR or FPR*/, src: Mem);
     fn emit_ldxp(&mut self, dest1: Reg, dest2: Reg, src: Mem); // [base]
     fn emit_ldaxp(&mut self, dest1: Reg, dest2: Reg, src: Mem); // [base]
-    fn emit_ldnp(
-        &mut self,
-        dest1: Reg, /*GPR or FPR*/
-        dest2: Reg, /*GPR or FPR*/
-        src: Mem
-    ); // [base, #simm7]
+    fn emit_ldnp(&mut self, dest1: Reg /*GPR or FPR*/, dest2: Reg /*GPR or FPR*/, src: Mem); // [base, #simm7]
 
     // Stores
     // supports the full full range of addressing modes
@@ -109,12 +103,7 @@ pub trait CodeGenerator {
     fn emit_stp(&mut self, dest: Mem, src1: Reg, src2: Reg);
     fn emit_stxp(&mut self, dest: Mem, status: Reg, src1: Reg, src2: Reg); // [base]
     fn emit_stlxp(&mut self, dest: Mem, status: Reg, src1: Reg, src2: Reg); // [base]
-    fn emit_stnp(
-        &mut self,
-        dest: Mem,
-        src1: Reg, /*GPR or FPR*/
-        src2: Reg  /*GPR or FPR*/
-    ); // [base, #simm7]
+    fn emit_stnp(&mut self, dest: Mem, src1: Reg /*GPR or FPR*/, src2: Reg /*GPR or FPR*/); // [base, #simm7]
 
     // Calls
     fn emit_bl(
@@ -241,14 +230,7 @@ pub trait CodeGenerator {
         signed: bool,
         shift: u8
     );
-    fn emit_adds_ext(
-        &mut self,
-        dest: Reg,
-        src1: Reg, /*GPR or SP*/
-        src2: Reg,
-        signed: bool,
-        shift: u8
-    );
+    fn emit_adds_ext(&mut self, dest: Reg, src1: Reg /*GPR or SP*/, src2: Reg, signed: bool, shift: u8);
     fn emit_sub_ext(
         &mut self,
         dest: Reg, /*GPR or SP*/
@@ -257,14 +239,7 @@ pub trait CodeGenerator {
         signed: bool,
         shift: u8
     );
-    fn emit_subs_ext(
-        &mut self,
-        dest: Reg,
-        src1: Reg, /*GPR or SP*/
-        src2: Reg,
-        signed: bool,
-        shift: u8
-    );
+    fn emit_subs_ext(&mut self, dest: Reg, src1: Reg /*GPR or SP*/, src2: Reg, signed: bool, shift: u8);
 
     // Multiplication
     fn emit_mul(&mut self, dest: Reg, src1: Reg, src2: Reg);
@@ -327,21 +302,9 @@ pub trait CodeGenerator {
     fn emit_orr_shift(&mut self, dest: Reg, src1: Reg, src2: Reg, shift: &str, amount: u8);
 
     // binary ops with immediates
-    fn emit_add_imm(
-        &mut self,
-        dest: Reg, /*GPR or SP*/
-        src1: Reg, /*GPR or SP*/
-        src2: u16,
-        shift: bool
-    );
+    fn emit_add_imm(&mut self, dest: Reg /*GPR or SP*/, src1: Reg /*GPR or SP*/, src2: u16, shift: bool);
     fn emit_adds_imm(&mut self, dest: Reg, src1: Reg /*GPR or SP*/, src2: u16, shift: bool);
-    fn emit_sub_imm(
-        &mut self,
-        dest: Reg, /*GPR or SP*/
-        src1: Reg, /*GPR or SP*/
-        src2: u16,
-        shift: bool
-    );
+    fn emit_sub_imm(&mut self, dest: Reg /*GPR or SP*/, src1: Reg /*GPR or SP*/, src2: u16, shift: bool);
     fn emit_subs_imm(&mut self, dest: Reg, src1: Reg /*GPR or SP*/, src2: u16, shift: bool);
 
     fn emit_and_imm(&mut self, dest: Reg /*GPR or SP*/, src1: Reg, src2: u64);

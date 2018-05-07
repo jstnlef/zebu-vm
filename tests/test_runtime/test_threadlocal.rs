@@ -12,13 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use utils::Address;
 use mu::runtime::thread;
 use mu::runtime::thread::MuThread;
 use mu::vm::VM;
+use utils::Address;
 
-use std::usize;
 use std::sync::Arc;
+use std::usize;
 
 #[test]
 fn test_access_exception_obj() {

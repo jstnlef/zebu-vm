@@ -14,9 +14,9 @@
 
 use ast::ir::*;
 use ast::ptr::*;
-use vm::VM;
 use compiler::CompilerPass;
 use std::any::Any;
+use vm::VM;
 
 pub struct DefUse {
     name: &'static str
@@ -24,9 +24,7 @@ pub struct DefUse {
 
 impl DefUse {
     pub fn new() -> DefUse {
-        DefUse {
-            name: "Def-Use Pass"
-        }
+        DefUse { name: "Def-Use Pass" }
     }
 }
 
@@ -60,10 +58,7 @@ impl CompilerPass for DefUse {
         if let &Some(ref vals) = &inst.value {
             for val in vals {
                 let id = val.extract_ssa_id().unwrap();
-                func_context
-                    .get_value_mut(id)
-                    .unwrap()
-                    .set_def(node.clone());
+                func_context.get_value_mut(id).unwrap().set_def(node.clone());
             }
         }
 

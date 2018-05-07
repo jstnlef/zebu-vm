@@ -16,19 +16,19 @@
 #![allow(dead_code)]
 extern crate mu;
 
-use self::mu::ast::types::*;
-use self::mu::ast::ir::*;
 use self::mu::ast::inst::*;
-use self::mu::ast::ptr::*;
+use self::mu::ast::ir::*;
 use self::mu::ast::op::*;
+use self::mu::ast::ptr::*;
+use self::mu::ast::types::*;
 use self::mu::vm::*;
 use self::mu::vm::api::*;
 use self::mu::vm::api::api_c::*;
 
-use std::mem;
-use std::ptr;
 use std::ffi::CString;
+use std::mem;
 use std::os::raw::c_char;
+use std::ptr;
 
 #[test]
 #[allow(unused_variables)]
@@ -119,14 +119,7 @@ fn test_types_sigs_loading() {
 
         let mut ptys = vec![id1, id2];
         let mut rtys = vec![id3, id7];
-        ((*b).new_funcsig)(
-            b,
-            id8,
-            ptys.as_mut_ptr(),
-            ptys.len(),
-            rtys.as_mut_ptr(),
-            rtys.len()
-        );
+        ((*b).new_funcsig)(b, id8, ptys.as_mut_ptr(), ptys.len(), rtys.as_mut_ptr(), rtys.len());
         ((*b).new_type_ufuncptr)(b, id9, id8);
 
         let id10 = ((*b).gen_sym)(b, csp.get("@hyb1"));
@@ -232,14 +225,7 @@ fn test_function_loading() {
 
         let mut ptys = vec![id_i32];
         let mut rtys = vec![id_i32];
-        ((*b).new_funcsig)(
-            b,
-            id_sig,
-            ptys.as_mut_ptr(),
-            ptys.len(),
-            rtys.as_mut_ptr(),
-            rtys.len()
-        );
+        ((*b).new_funcsig)(b, id_sig, ptys.as_mut_ptr(), ptys.len(), rtys.as_mut_ptr(), rtys.len());
 
         ((*b).new_func)(b, id_func, id_sig);
 
@@ -347,23 +333,11 @@ fn test_function_loading() {
 
             {
                 let mut dest_args = vec![id_x];
-                ((*b).new_dest_clause)(
-                    b,
-                    id_dest_t,
-                    id_bb3,
-                    dest_args.as_mut_ptr(),
-                    dest_args.len()
-                );
+                ((*b).new_dest_clause)(b, id_dest_t, id_bb3, dest_args.as_mut_ptr(), dest_args.len());
             }
             {
                 let mut dest_args = vec![id_y, id_y, id_x];
-                ((*b).new_dest_clause)(
-                    b,
-                    id_dest_f,
-                    id_bb4,
-                    dest_args.as_mut_ptr(),
-                    dest_args.len()
-                );
+                ((*b).new_dest_clause)(b, id_dest_f, id_bb4, dest_args.as_mut_ptr(), dest_args.len());
             }
 
             ((*b).new_branch2)(b, id_br2, id_e, id_dest_t, id_dest_f);
@@ -460,23 +434,11 @@ fn test_function_loading() {
 
             {
                 let mut dest_args = vec![id_x];
-                ((*b).new_dest_clause)(
-                    b,
-                    id_dest_def,
-                    id_bb3,
-                    dest_args.as_mut_ptr(),
-                    dest_args.len()
-                );
+                ((*b).new_dest_clause)(b, id_dest_def, id_bb3, dest_args.as_mut_ptr(), dest_args.len());
             }
             {
                 let mut dest_args = vec![id_y, id_y, id_x];
-                ((*b).new_dest_clause)(
-                    b,
-                    id_dest_99,
-                    id_bb4,
-                    dest_args.as_mut_ptr(),
-                    dest_args.len()
-                );
+                ((*b).new_dest_clause)(b, id_dest_99, id_bb4, dest_args.as_mut_ptr(), dest_args.len());
             }
 
             let mut cases = vec![id_const99];
@@ -527,14 +489,7 @@ fn test_insts_call() {
 
         let mut ptys = vec![id_i32];
         let mut rtys = vec![id_i32];
-        ((*b).new_funcsig)(
-            b,
-            id_sig,
-            ptys.as_mut_ptr(),
-            ptys.len(),
-            rtys.as_mut_ptr(),
-            rtys.len()
-        );
+        ((*b).new_funcsig)(b, id_sig, ptys.as_mut_ptr(), ptys.len(), rtys.as_mut_ptr(), rtys.len());
 
         ((*b).new_func)(b, id_func, id_sig);
 
@@ -604,23 +559,11 @@ fn test_insts_call() {
                 ((*b).new_exc_clause)(b, id_exc, id_dest1, id_dest2);
                 {
                     let mut dest_args = vec![id_y, id_z, id_x];
-                    ((*b).new_dest_clause)(
-                        b,
-                        id_dest1,
-                        id_bb1,
-                        dest_args.as_mut_ptr(),
-                        dest_args.len()
-                    );
+                    ((*b).new_dest_clause)(b, id_dest1, id_bb1, dest_args.as_mut_ptr(), dest_args.len());
                 }
                 {
                     let mut dest_args = vec![];
-                    ((*b).new_dest_clause)(
-                        b,
-                        id_dest2,
-                        id_bb2,
-                        dest_args.as_mut_ptr(),
-                        dest_args.len()
-                    );
+                    ((*b).new_dest_clause)(b, id_dest2, id_bb2, dest_args.as_mut_ptr(), dest_args.len());
                 }
 
                 ((*b).new_call)(
@@ -733,14 +676,7 @@ fn test_insts_new() {
 
         let mut ptys = vec![];
         let mut rtys = vec![];
-        ((*b).new_funcsig)(
-            b,
-            id_sig,
-            ptys.as_mut_ptr(),
-            ptys.len(),
-            rtys.as_mut_ptr(),
-            rtys.len()
-        );
+        ((*b).new_funcsig)(b, id_sig, ptys.as_mut_ptr(), ptys.len(), rtys.as_mut_ptr(), rtys.len());
 
         let id_consti64_3 = ((*b).gen_sym)(b, csp.get("@CONSTI64_3"));
         ((*b).new_const_int)(b, id_consti64_3, id_i64, 3);
@@ -813,28 +749,10 @@ fn test_insts_new() {
             ((*b).new_getfieldiref)(b, id_getfieldiref1, id_v_f1, 0, id_s, 1, id_v_i1);
             ((*b).new_getfieldiref)(b, id_getfieldiref2, id_v_f2, 0, id_h, 2, id_v_i2);
 
-            ((*b).new_getelemiref)(
-                b,
-                id_getelemiref,
-                id_v_e,
-                0,
-                id_a,
-                id_i64,
-                id_v_f1,
-                id_consti64_3
-            );
+            ((*b).new_getelemiref)(b, id_getelemiref, id_v_e, 0, id_a, id_i64, id_v_f1, id_consti64_3);
 
             ((*b).new_getvarpartiref)(b, id_getvarpartiref, id_v_v, 0, id_h, id_v_i2);
-            ((*b).new_shiftiref)(
-                b,
-                id_shiftiref,
-                id_v_s,
-                0,
-                id_i8,
-                id_i64,
-                id_v_v,
-                id_consti64_3
-            );
+            ((*b).new_shiftiref)(b, id_shiftiref, id_v_s, 0, id_i8, id_i64, id_v_v, id_consti64_3);
 
             {
                 let mut args = vec![];

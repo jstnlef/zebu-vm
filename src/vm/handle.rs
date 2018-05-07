@@ -15,9 +15,9 @@
 use ast::ir::*;
 use ast::ptr::*;
 use ast::types::*;
-use utils::BitSize;
-use utils::Address;
 use std::fmt;
+use utils::Address;
+use utils::BitSize;
 
 /// APIHandle represents the opaque handle type that the client uses to
 /// communicate with Mu. Handles can refer to values, functions, signatures,
@@ -168,9 +168,7 @@ impl APIHandleValue {
     /// matches the handle as ref or iref
     pub fn as_ref_or_iref(&self) -> (P<MuType>, Address) {
         match self {
-            &APIHandleValue::Ref(ref ty, addr) | &APIHandleValue::IRef(ref ty, addr) => {
-                (ty.clone(), addr)
-            }
+            &APIHandleValue::Ref(ref ty, addr) | &APIHandleValue::IRef(ref ty, addr) => (ty.clone(), addr),
             _ => panic!("expected Ref or IRef handle")
         }
     }
@@ -198,10 +196,7 @@ impl APIHandleValue {
             | &APIHandleValue::Ref(_, addr)
             | &APIHandleValue::UPtr(_, addr)
             | &APIHandleValue::UFP(_, addr) => addr,
-            _ => panic!(
-                "expected iref/ref/uptr/ufp which contains a pointer, found {}",
-                self
-            )
+            _ => panic!("expected iref/ref/uptr/ufp which contains a pointer, found {}", self)
         }
     }
 

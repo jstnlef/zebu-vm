@@ -12,20 +12,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use ast::ir::*;
-use ast::ptr::*;
 use ast::inst::*;
+use ast::ir::*;
 use ast::op::*;
+use ast::ptr::*;
 use ast::types::*;
-use vm::VM;
 use compiler::CompilerPass;
+use runtime::entrypoints;
 use runtime::mm;
 use runtime::mm::*;
-use runtime::entrypoints;
 use runtime::thread;
+use std::any::Any;
 use utils::*;
 use utils::math;
-use std::any::Any;
+use vm::VM;
 
 pub struct InjectRuntime {
     name: &'static str
@@ -101,9 +101,7 @@ impl CompilerPass for InjectRuntime {
                             cur_block.append_inst(node.clone());
                         }
                     }
-                    Instruction_::NewHybrid(ref ty, len_index)
-                        if inst.ops[len_index].is_const_value() =>
-                    {
+                    Instruction_::NewHybrid(ref ty, len_index) if inst.ops[len_index].is_const_value() => {
                         let len = inst.ops[len_index].as_value().extract_int_const().unwrap();
 
                         let ty_info = vm.get_backend_type_info(ty.id());
@@ -226,8 +224,7 @@ fn gen_allocation_sequence(
     // align up the cursor: (cursor + align - 1) & !(align - 1)
     // cursor_t1 = cursor + (align - 1)
     let tmp_cursor_t1 = func_context.make_temporary(vm.next_id(), UINT64_TYPE.clone());
-    let tmp_align_minus_one =
-        TreeNode::new_value(Value::make_int64_const(vm.next_id(), (align - 1) as u64));
+    let tmp_align_minus_one = TreeNode::new_value(Value::make_int64_const(vm.next_id(), (align - 1) as u64));
     cur_block.append_inst(TreeNode::new_inst(Instruction {
         hdr: MuEntityHeader::unnamed(vm.next_id()),
         value: Some(vec![tmp_cursor_t1.clone_value()]),
@@ -237,8 +234,7 @@ fn gen_allocation_sequence(
 
     // start = cursor_t1 & !(align - 1)
     let tmp_start = func_context.make_temporary(vm.next_id(), UINT64_TYPE.clone());
-    let tmp_not_align_minus_one =
-        TreeNode::new_value(Value::make_int64_const(vm.next_id(), !(align - 1) as u64));
+    let tmp_not_align_minus_one = TreeNode::new_value(Value::make_int64_const(vm.next_id(), !(align - 1) as u64));
     cur_block.append_inst(TreeNode::new_inst(Instruction {
         hdr: MuEntityHeader::unnamed(vm.next_id()),
         value: Some(vec![tmp_start.clone_value()]),
@@ -384,10 +380,8 @@ fn gen_allocation_sequence(
             exn_arg: None,
             body: {
                 let mutator_offset = *thread::ALLOCATOR_OFFSET;
-                let tmp_mutator_loc =
-                    func_context.make_temporary(vm.next_id(), UPTR_U8_TYPE.clone());
-                let tmp_align =
-                    TreeNode::new_value(Value::make_int64_const(vm.next_id(), align as u64));
+                let tmp_mutator_loc = func_context.make_temporary(vm.next_id(), UPTR_U8_TYPE.clone());
+                let tmp_align = TreeNode::new_value(Value::make_int64_const(vm.next_id(), align as u64));
 
                 let func: &entrypoints::RuntimeEntrypoint = if is_alloc_tiny {
                     &entrypoints::ALLOC_TINY_SLOW
@@ -396,10 +390,7 @@ fn gen_allocation_sequence(
                 };
                 let tmp_alloc_slow = TreeNode::new_value(P(Value {
                     hdr: MuEntityHeader::unnamed(vm.next_id()),
-                    ty: P(MuType::new(
-                        vm.next_id(),
-                        MuType_::UFuncPtr(func.sig.clone())
-                    )),
+                    ty: P(MuType::new(vm.next_id(), MuType_::UFuncPtr(func.sig.clone()))),
                     v: Value_::Constant(Constant::ExternSym(func.aot.to_relocatable()))
                 }));
                 vec![
@@ -409,10 +400,7 @@ fn gen_allocation_sequence(
                         value: Some(vec![tmp_mutator_loc.clone_value()]),
                         ops: vec![
                             tmp_tl.clone(),
-                            TreeNode::new_value(Value::make_int64_const(
-                                vm.next_id(),
-                                mutator_offset as u64
-                            )),
+                            TreeNode::new_value(Value::make_int64_const(vm.next_id(), mutator_offset as u64)),
                         ],
                         v: Instruction_::ShiftIRef {
                             is_ptr: true,
@@ -424,12 +412,7 @@ fn gen_allocation_sequence(
                     TreeNode::new_inst(Instruction {
                         hdr: MuEntityHeader::unnamed(vm.next_id()),
                         value: Some(vec![tmp_res.clone()]),
-                        ops: vec![
-                            tmp_alloc_slow,
-                            tmp_mutator_loc.clone(),
-                            tmp_size.clone(),
-                            tmp_align,
-                        ],
+                        ops: vec![tmp_alloc_slow, tmp_mutator_loc.clone(), tmp_size.clone(), tmp_align],
                         v: Instruction_::ExprCCall {
                             data: CallData {
                                 func: 0,

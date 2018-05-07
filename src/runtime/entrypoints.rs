@@ -86,47 +86,27 @@ lazy_static! {
 lazy_static! {
     pub static ref ALLOC_TINY: RuntimeEntrypoint = RuntimeEntrypoint::new(
         "muentry_alloc_tiny",
-        vec![
-            ADDRESS_TYPE.clone(),
-            UINT64_TYPE.clone(),
-            UINT64_TYPE.clone(),
-        ],
+        vec![ADDRESS_TYPE.clone(), UINT64_TYPE.clone(), UINT64_TYPE.clone()],
         vec![ADDRESS_TYPE.clone()]
     );
     pub static ref ALLOC_TINY_SLOW: RuntimeEntrypoint = RuntimeEntrypoint::new(
         "muentry_alloc_tiny_slow",
-        vec![
-            ADDRESS_TYPE.clone(),
-            UINT64_TYPE.clone(),
-            UINT64_TYPE.clone(),
-        ],
+        vec![ADDRESS_TYPE.clone(), UINT64_TYPE.clone(), UINT64_TYPE.clone()],
         vec![ADDRESS_TYPE.clone()]
     );
     pub static ref ALLOC_NORMAL: RuntimeEntrypoint = RuntimeEntrypoint::new(
         "muentry_alloc_normal",
-        vec![
-            ADDRESS_TYPE.clone(),
-            UINT64_TYPE.clone(),
-            UINT64_TYPE.clone(),
-        ],
+        vec![ADDRESS_TYPE.clone(), UINT64_TYPE.clone(), UINT64_TYPE.clone()],
         vec![ADDRESS_TYPE.clone()]
     );
     pub static ref ALLOC_NORMAL_SLOW: RuntimeEntrypoint = RuntimeEntrypoint::new(
         "muentry_alloc_normal_slow",
-        vec![
-            ADDRESS_TYPE.clone(),
-            UINT64_TYPE.clone(),
-            UINT64_TYPE.clone(),
-        ],
+        vec![ADDRESS_TYPE.clone(), UINT64_TYPE.clone(), UINT64_TYPE.clone()],
         vec![ADDRESS_TYPE.clone()]
     );
     pub static ref ALLOC_LARGE: RuntimeEntrypoint = RuntimeEntrypoint::new(
         "muentry_alloc_large",
-        vec![
-            ADDRESS_TYPE.clone(),
-            UINT64_TYPE.clone(),
-            UINT64_TYPE.clone(),
-        ],
+        vec![ADDRESS_TYPE.clone(), UINT64_TYPE.clone(), UINT64_TYPE.clone()],
         vec![ADDRESS_TYPE.clone()]
     );
     pub static ref ALLOC_VAR_SIZE: RuntimeEntrypoint = RuntimeEntrypoint::new(
@@ -143,29 +123,17 @@ lazy_static! {
     );
     pub static ref INIT_TINY: RuntimeEntrypoint = RuntimeEntrypoint::new(
         "muentry_init_tiny_object",
-        vec![
-            ADDRESS_TYPE.clone(),
-            ADDRESS_TYPE.clone(),
-            UINT8_TYPE.clone(),
-        ],
+        vec![ADDRESS_TYPE.clone(), ADDRESS_TYPE.clone(), UINT8_TYPE.clone()],
         vec![]
     );
     pub static ref INIT_SMALL: RuntimeEntrypoint = RuntimeEntrypoint::new(
         "muentry_init_small_object",
-        vec![
-            ADDRESS_TYPE.clone(),
-            ADDRESS_TYPE.clone(),
-            UINT16_TYPE.clone(),
-        ],
+        vec![ADDRESS_TYPE.clone(), ADDRESS_TYPE.clone(), UINT16_TYPE.clone()],
         vec![]
     );
     pub static ref INIT_MEDIUM: RuntimeEntrypoint = RuntimeEntrypoint::new(
         "muentry_init_medium_object",
-        vec![
-            ADDRESS_TYPE.clone(),
-            ADDRESS_TYPE.clone(),
-            UINT32_TYPE.clone(),
-        ],
+        vec![ADDRESS_TYPE.clone(), ADDRESS_TYPE.clone(), UINT32_TYPE.clone()],
         vec![]
     );
     pub static ref INIT_LARGE: RuntimeEntrypoint = RuntimeEntrypoint::new(

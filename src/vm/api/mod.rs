@@ -46,10 +46,10 @@ pub use self::api_impl::mu_fastimpl_new_with_opts;
 pub use self::api_impl::mu_get_version;
 
 mod deps {
-    pub use ast::ir::WPID;
+    pub use ast::ir::CName;
     pub use ast::ir::MuID;
     pub use ast::ir::MuName;
-    pub use ast::ir::CName;
+    pub use ast::ir::WPID;
     pub use vm::handle::APIHandle;
     extern crate mu_ast as ast;
 }

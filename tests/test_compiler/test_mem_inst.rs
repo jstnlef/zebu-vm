@@ -14,18 +14,18 @@
 
 extern crate libloading;
 
-use mu::ast::types::*;
-use mu::ast::ir::*;
 use mu::ast::inst::*;
+use mu::ast::ir::*;
 use mu::ast::op::*;
-use mu::vm::*;
+use mu::ast::types::*;
 use mu::compiler::*;
 use mu::utils::LinkedHashMap;
 use mu::utils::mem::memsec;
+use mu::vm::*;
 
-use std::sync::Arc;
-use mu::linkutils::aot;
 use mu::linkutils;
+use mu::linkutils::aot;
+use std::sync::Arc;
 
 use test_compiler::test_call::gen_ccall_exit;
 
@@ -39,8 +39,7 @@ fn test_store_seqcst() {
             None => panic!("failed to allocate memory for test")
         };
 
-        let store_seqcst: libloading::Symbol<unsafe extern "C" fn(*mut u64, u64)> =
-            lib.get(b"store_seqcst").unwrap();
+        let store_seqcst: libloading::Symbol<unsafe extern "C" fn(*mut u64, u64)> = lib.get(b"store_seqcst").unwrap();
 
         store_seqcst(ptr, 42);
         let load_val = *ptr;
@@ -100,8 +99,7 @@ fn test_write_int8_val() {
         println!("foo.1 = {}", (*ptr).1);
         println!("foo.2 = {}", (*ptr).2);
 
-        let write_int8: libloading::Symbol<unsafe extern "C" fn(*mut Foo, i8)> =
-            lib.get(b"write_int8").unwrap();
+        let write_int8: libloading::Symbol<unsafe extern "C" fn(*mut Foo, i8)> = lib.get(b"write_int8").unwrap();
 
         write_int8(ptr, 42);
 
@@ -173,8 +171,7 @@ fn test_write_int8_const() {
         println!("foo.1 = {}", (*ptr).1);
         println!("foo.2 = {}", (*ptr).2);
 
-        let write_int8: libloading::Symbol<unsafe extern "C" fn(*mut Foo)> =
-            lib.get(b"write_int8_const").unwrap();
+        let write_int8: libloading::Symbol<unsafe extern "C" fn(*mut Foo)> = lib.get(b"write_int8_const").unwrap();
 
         write_int8(ptr);
 
@@ -296,8 +293,7 @@ fn test_get_iref() {
     let lib = linkutils::aot::compile_fnc("get_iref", &get_iref);
 
     unsafe {
-        let get_iref: libloading::Symbol<unsafe extern "C" fn(u64) -> u64> =
-            lib.get(b"get_iref").unwrap();
+        let get_iref: libloading::Symbol<unsafe extern "C" fn(u64) -> u64> = lib.get(b"get_iref").unwrap();
 
         let addr = 0x10000000;
         let res = get_iref(addr);
@@ -353,11 +349,7 @@ fn test_struct() {
         let funcs = vm.funcs().read().unwrap();
         let func = funcs.get(&func_id).unwrap().read().unwrap();
         let func_vers = vm.func_vers().read().unwrap();
-        let mut func_ver = func_vers
-            .get(&func.cur_ver.unwrap())
-            .unwrap()
-            .write()
-            .unwrap();
+        let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
 
         compiler.compile(&mut func_ver);
     }
@@ -365,11 +357,7 @@ fn test_struct() {
     vm.set_primordial_thread(func_id, true, vec![]);
     backend::emit_context(&vm);
 
-    let executable = aot::link_primordial(
-        vec![Arc::new("struct_insts".to_string())],
-        "struct_insts_test",
-        &vm
-    );
+    let executable = aot::link_primordial(vec![Arc::new("struct_insts".to_string())], "struct_insts_test", &vm);
     let output = linkutils::exec_path_nocheck(executable);
 
     assert!(output.status.code().is_some());
@@ -617,11 +605,7 @@ fn test_hybrid_fix_part() {
         let funcs = vm.funcs().read().unwrap();
         let func = funcs.get(&func_id).unwrap().read().unwrap();
         let func_vers = vm.func_vers().read().unwrap();
-        let mut func_ver = func_vers
-            .get(&func.cur_ver.unwrap())
-            .unwrap()
-            .write()
-            .unwrap();
+        let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
 
         compiler.compile(&mut func_ver);
     }
@@ -782,11 +766,7 @@ fn test_hybrid_var_part() {
         let funcs = vm.funcs().read().unwrap();
         let func = funcs.get(&func_id).unwrap().read().unwrap();
         let func_vers = vm.func_vers().read().unwrap();
-        let mut func_ver = func_vers
-            .get(&func.cur_ver.unwrap())
-            .unwrap()
-            .write()
-            .unwrap();
+        let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
 
         compiler.compile(&mut func_ver);
     }
@@ -1025,9 +1005,8 @@ fn test_shift_iref_ele_4bytes() {
     let lib = linkutils::aot::compile_fnc("shift_iref_ele_4bytes", &shift_iref_ele_4bytes);
 
     unsafe {
-        let shift_iref_ele_4bytes: libloading::Symbol<
-            unsafe extern "C" fn(u64, u64) -> u64
-        > = lib.get(b"shift_iref_ele_4bytes").unwrap();
+        let shift_iref_ele_4bytes: libloading::Symbol<unsafe extern "C" fn(u64, u64) -> u64> =
+            lib.get(b"shift_iref_ele_4bytes").unwrap();
 
         let res = shift_iref_ele_4bytes(0, 0);
         println!("shift_iref_ele_4bytes(0, 0) = {}", res);
@@ -1087,9 +1066,8 @@ fn test_shift_iref_ele_8bytes() {
     let lib = linkutils::aot::compile_fnc("shift_iref_ele_8bytes", &shift_iref_ele_8bytes);
 
     unsafe {
-        let shift_iref_ele_8bytes: libloading::Symbol<
-            unsafe extern "C" fn(u64, u64) -> u64
-        > = lib.get(b"shift_iref_ele_8bytes").unwrap();
+        let shift_iref_ele_8bytes: libloading::Symbol<unsafe extern "C" fn(u64, u64) -> u64> =
+            lib.get(b"shift_iref_ele_8bytes").unwrap();
 
         let res = shift_iref_ele_8bytes(0, 0);
         println!("shift_iref_ele_8bytes(0, 0) = {}", res);
@@ -1148,9 +1126,8 @@ fn test_shift_iref_ele_9bytes() {
     let lib = linkutils::aot::compile_fnc("shift_iref_ele_9bytes", &shift_iref_ele_9bytes);
 
     unsafe {
-        let shift_iref_ele_9bytes: libloading::Symbol<
-            unsafe extern "C" fn(u64, u64) -> u64
-        > = lib.get(b"shift_iref_ele_9bytes").unwrap();
+        let shift_iref_ele_9bytes: libloading::Symbol<unsafe extern "C" fn(u64, u64) -> u64> =
+            lib.get(b"shift_iref_ele_9bytes").unwrap();
 
         let res = shift_iref_ele_9bytes(0, 0);
         println!("shift_iref_ele_9bytes(0, 0) = {}", res);
@@ -1210,9 +1187,8 @@ fn test_shift_iref_ele_16bytes() {
     let lib = linkutils::aot::compile_fnc("shift_iref_ele_16bytes", &shift_iref_ele_16bytes);
 
     unsafe {
-        let shift_iref_ele_16bytes: libloading::Symbol<
-            unsafe extern "C" fn(u64, u64) -> u64
-        > = lib.get(b"shift_iref_ele_16bytes").unwrap();
+        let shift_iref_ele_16bytes: libloading::Symbol<unsafe extern "C" fn(u64, u64) -> u64> =
+            lib.get(b"shift_iref_ele_16bytes").unwrap();
 
         let res = shift_iref_ele_16bytes(0, 0);
         println!("shift_iref_ele_16bytes(0, 0) = {}", res);
@@ -1268,15 +1244,11 @@ fn shift_iref_ele_16bytes() -> VM {
 
 #[test]
 fn test_get_elem_iref_array_ele_9bytes() {
-    let lib = linkutils::aot::compile_fnc(
-        "get_elem_iref_array_ele_9bytes",
-        &get_elem_iref_array_ele_9bytes
-    );
+    let lib = linkutils::aot::compile_fnc("get_elem_iref_array_ele_9bytes", &get_elem_iref_array_ele_9bytes);
 
     unsafe {
-        let get_elem_iref_array_ele_9bytes: libloading::Symbol<
-            unsafe extern "C" fn(u64, u64) -> u64
-        > = lib.get(b"get_elem_iref_array_ele_9bytes").unwrap();
+        let get_elem_iref_array_ele_9bytes: libloading::Symbol<unsafe extern "C" fn(u64, u64) -> u64> =
+            lib.get(b"get_elem_iref_array_ele_9bytes").unwrap();
 
         let res = get_elem_iref_array_ele_9bytes(0, 0);
         println!("get_elem_iref_array_ele_9bytes(0, 0) = {}", res);

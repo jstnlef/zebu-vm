@@ -16,17 +16,17 @@ extern crate libloading;
 extern crate log;
 extern crate mu;
 
-use self::mu::ast::types::*;
-use self::mu::ast::ir::*;
 use self::mu::ast::inst::*;
+use self::mu::ast::ir::*;
 use self::mu::ast::op::*;
-use self::mu::vm::*;
+use self::mu::ast::types::*;
 use self::mu::linkutils;
+use self::mu::vm::*;
 use mu::utils::LinkedHashMap;
 
-use std::sync::Arc;
-use mu::linkutils::aot;
 use mu::compiler::*;
+use mu::linkutils::aot;
+use std::sync::Arc;
 
 #[test]
 fn test_double_add() {
@@ -801,9 +801,8 @@ fn test_fp_arraysum() {
     let lib = linkutils::aot::compile_fnc("fp_arraysum", &fp_arraysum);
 
     unsafe {
-        let fp_arraysum: libloading::Symbol<
-            unsafe extern "C" fn(*const c_double, u64) -> f64
-        > = lib.get(b"fp_arraysum").unwrap();
+        let fp_arraysum: libloading::Symbol<unsafe extern "C" fn(*const c_double, u64) -> f64> =
+            lib.get(b"fp_arraysum").unwrap();
 
         let array: [f64; 10] = [
             0f64, 0.1f64, 0.2f64, 0.3f64, 0.4f64, 0.5f64, 0.6f64, 0.7f64, 0.8f64, 0.9f64
