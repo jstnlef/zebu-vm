@@ -13,7 +13,7 @@
 # limitations under the License.
 
 [package]
-name = "mu"
+name = "zebu_vm"
 version = "0.0.1"
 authors = [ "Your name <you@example.com>" ]
 build = "build.rs"
@@ -33,9 +33,8 @@ sel4-rumprun-target-side = []
 gcc = "^0.3"
 
 [dependencies]
-mu_ast = {path = "src/ast"}
-mu_utils = {path = "src/utils"}
-#mu_gc = {path = "src/gc"}
+zebu_ast = {path = "src/ast"}
+zebu_utils = {path = "src/utils"}
 #rodal = { git = "https://gitlab.anu.edu.au/mu/rodal", branch = "new", version = "^0.1.13" }
 rodal = { path = "../rodal", version = "*" }
 
@@ -59,19 +58,19 @@ extprim = "^1.5"
 num-traits = "^0.2"
 
 [target.aarch64-unknown-linux-gnu.dependencies]
-mu_gc = { path = "src/gc"}
+zebu_gc = { path = "src/gc"}
 built = "0.1"
 
 [target.x86_64-unknown-linux-gnu.dependencies]
-mu_gc = { path = "src/gc"}
+zebu_gc = { path = "src/gc"}
 built = "0.1"
 
 [target.x86_64-apple-darwin.dependencies]
-mu_gc = { path = "src/gc"}
+zebu_gc = { path = "src/gc"}
 built = "0.1"
 
 [target.x86_64-rumprun-netbsd.dependencies]
-mu_gc = { path = "src/gc", features = ["sel4-rumprun-target-side"], target = "x86_64-rumprun-netbsd"}
+zebu_gc = { path = "src/gc", features = ["sel4-rumprun-target-side"], target = "x86_64-rumprun-netbsd"}
 
 [target.aarch64-unknown-linux-gnu.build-dependencies]
 built = "0.1"

@@ -14,7 +14,7 @@
 
 #![allow(unused_imports)]
 #![allow(dead_code)]
-extern crate mu;
+extern crate zebu_vm as mu;
 
 use self::mu::ast::inst::*;
 use self::mu::ast::ir::*;

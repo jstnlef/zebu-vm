@@ -13,7 +13,7 @@
 // limitations under the License.
 
 extern crate libloading;
-extern crate mu;
+extern crate zebu_vm as mu;
 
 use self::mu::ast::inst::*;
 use self::mu::ast::ir::*;

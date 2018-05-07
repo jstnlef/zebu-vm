@@ -16,7 +16,7 @@
 /// we design the GC crate to be separate from other parts of the VM, and to be self-contained
 /// as much as possible. We only expose limited interface (functions, data structures, constants)
 /// from the GC crate, and those get re-exported in this module.
-extern crate mu_gc as gc;
+extern crate zebu_gc as gc;
 pub use self::gc::*;
 
 use ast::ir::*;

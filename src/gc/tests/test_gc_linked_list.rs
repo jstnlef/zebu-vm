@@ -12,8 +12,8 @@
 //// See the License for the specific language governing permissions and
 //// limitations under the License.
 //
-//extern crate mu_gc as gc;
-//extern crate mu_utils as utils;
+//extern crate zebu_gc as gc;
+//extern crate zebu_utils as utils;
 //
 //use self::gc::start_logging_trace;
 //use std::ptr;

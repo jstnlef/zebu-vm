@@ -1,6 +1,6 @@
 extern crate libloading;
 extern crate log;
-extern crate mu;
+extern crate zebu_vm as mu;
 
 use self::mu::ast::inst::*;
 use self::mu::ast::ir::*;

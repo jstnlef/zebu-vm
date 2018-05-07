@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-extern crate mu;
+extern crate zebu_vm as mu;
 
 use self::mu::ast::ir::*;
 use self::mu::compiler::*;

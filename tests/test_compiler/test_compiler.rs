@@ -13,7 +13,7 @@
 // limitations under the License.
 
 extern crate libloading as ll;
-extern crate mu;
+extern crate zebu_vm as mu;
 
 use mu::linkutils;
 use test_ir::test_ir::factorial;

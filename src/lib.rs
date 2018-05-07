@@ -32,10 +32,10 @@ extern crate field_offset;
 extern crate extprim;
 extern crate num;
 #[macro_use]
-pub extern crate mu_ast as ast;
+pub extern crate zebu_ast as ast;
 #[macro_use]
-pub extern crate mu_utils as utils;
-pub extern crate mu_gc as gc;
+pub extern crate zebu_utils as utils;
+pub extern crate zebu_gc as gc;
 pub mod vm;
 pub mod compiler;
 pub mod runtime;

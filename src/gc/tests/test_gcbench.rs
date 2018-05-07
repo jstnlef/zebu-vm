@@ -19,8 +19,8 @@
 //#![allow(dead_code)]
 //#![allow(unused_imports)]
 //
-//extern crate mu_gc as gc;
-//extern crate mu_utils as utils;
+//extern crate zebu_gc as gc;
+//extern crate zebu_utils as utils;
 //extern crate time;
 //
 //use self::gc::start_logging_trace;

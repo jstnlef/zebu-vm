@@ -13,7 +13,7 @@
 # limitations under the License.
 
 [package]
-name = "mu_ast"
+name = "zebu_ast"
 version = "0.0.1"
 authors = ["qinsoon <qinsoon@gmail.com>"]
 
@@ -21,7 +21,7 @@ authors = ["qinsoon <qinsoon@gmail.com>"]
 crate-type = ["rlib"]
 
 [dependencies]
-mu_utils = {path = "../utils"}
+zebu_utils = {path = "../utils"}
 lazy_static = "^1.0"
 log = "^0.4"
 simple_logger = "^0.5"

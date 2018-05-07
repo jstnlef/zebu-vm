@@ -13,7 +13,7 @@
 # limitations under the License.
 
 [package]
-name = "mu_gc"
+name = "zebu_gc"
 version = "0.0.1"
 authors = ["qinsoon <qinsoon@gmail.com>"]
 build = "build.rs"
@@ -30,7 +30,7 @@ sel4-rumprun-target-side = []
 gcc = "*"
 
 [dependencies]
-mu_utils = {path = "../utils"}
+zebu_utils = {path = "../utils"}
 time = "^0.1"
 lazy_static = "^1.0"
 log = "^0.4"

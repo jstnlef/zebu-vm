@@ -69,7 +69,7 @@
 
 #[macro_use]
 extern crate rodal;
-extern crate mu_utils as utils;
+extern crate zebu_utils as utils;
 #[macro_use]
 extern crate lazy_static;
 #[macro_use]

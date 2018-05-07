@@ -14,8 +14,8 @@
 
 //#![feature(i128_type)]
 
-extern crate mu;
-extern crate mu_utils as utils;
+extern crate zebu_vm as mu;
+extern crate zebu_utils as utils;
 #[macro_use]
 extern crate log;
 extern crate maplit;

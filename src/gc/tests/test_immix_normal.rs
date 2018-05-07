@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-extern crate mu_gc;
-extern crate mu_utils;
+extern crate zebu_gc;
+extern crate zebu_utils;
 extern crate log;
 
 use self::mu_gc::*;
