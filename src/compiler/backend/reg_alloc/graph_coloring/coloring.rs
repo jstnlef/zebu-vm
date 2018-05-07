@@ -121,7 +121,7 @@ impl<'a> GraphColoring<'a> {
         trace!("Initializing coloring allocator...");
         cf.mc().trace_mc();
 
-        let ig = graph_coloring::build_inteference_graph(cf, func);
+        let ig = graph_coloring::build_interference_graph(cf, func);
 
         let coloring = GraphColoring {
             func: func,

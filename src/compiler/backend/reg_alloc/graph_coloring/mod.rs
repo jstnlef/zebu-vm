@@ -14,19 +14,18 @@
 
 extern crate petgraph;
 
-mod liveness;
-mod coloring;
-
-use compiler::backend::reg_alloc::graph_coloring::coloring::GraphColoring;
-use compiler::backend::reg_alloc::graph_coloring::liveness::build_interference_graph_chaitin_briggs as build_inteference_graph;
-
 use ast::ir::*;
-use compiler::CompilerPass;
 use compiler::backend::init_machine_regs_for_func;
 use compiler::backend::is_callee_saved;
+use compiler::backend::reg_alloc::graph_coloring::coloring::GraphColoring;
+use compiler::backend::reg_alloc::graph_coloring::liveness::build_interference_graph_chaitin_briggs as build_interference_graph;
 use compiler::backend::reg_alloc::validate;
+use compiler::CompilerPass;
 use std::any::Any;
 use vm::VM;
+
+mod liveness;
+mod coloring;
 
 pub struct RegisterAllocation {
     name: &'static str
