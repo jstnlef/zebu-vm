@@ -64,7 +64,7 @@ impl RegisterAllocation {
         let coloring = GraphColoring::start(func, &mut cf, vm);
 
         // if we need to validate the results
-        if !vm.vm_options.flag_disable_regalloc_validate {
+        if !vm.options.flag_disable_regalloc_validate {
             // a map of register assignment (from temp to machine register)
             let reg_assignment = coloring.get_assignments();
             // a map of spilled temporaries (from spilled temp to scratch temp)

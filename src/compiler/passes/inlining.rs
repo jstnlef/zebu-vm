@@ -38,7 +38,7 @@ impl CompilerPass for Inlining {
     }
 
     fn visit_function(&mut self, vm: &VM, func: &mut MuFunctionVersion) {
-        if vm.vm_options.flag_disable_inline {
+        if vm.options.flag_disable_inline {
             info!("inlining is disabled");
             return;
         }

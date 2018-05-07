@@ -4420,14 +4420,14 @@ impl<'a> InstructionSelection {
 
         // push rbp
         self.backend.emit_push_r64(&x86_64::RBP);
-        if vm.vm_options.flag_emit_debug_info {
+        if vm.options.flag_emit_debug_info {
             self.backend.add_cfi_def_cfa_offset(16i32);
             self.backend.add_cfi_offset(&x86_64::RBP, -16i32);
         }
 
         // mov rsp -> rbp
         self.backend.emit_mov_r_r(&x86_64::RBP, &x86_64::RSP);
-        if vm.vm_options.flag_emit_debug_info {
+        if vm.options.flag_emit_debug_info {
             self.backend.add_cfi_def_cfa_register(&x86_64::RBP);
         }
 
@@ -5921,7 +5921,7 @@ impl CompilerPass for InstructionSelection {
             let funcs = vm.funcs().read().unwrap();
             let func = funcs.get(&func_ver.func_id).unwrap().read().unwrap();
             let start_loc = self.backend.start_code(func.name(), entry_block.name());
-            if vm.vm_options.flag_emit_debug_info {
+            if vm.options.flag_emit_debug_info {
                 self.backend.add_cfi_startproc();
             }
 
@@ -5998,7 +5998,7 @@ impl CompilerPass for InstructionSelection {
         };
 
         // have to do this before 'finish_code()'
-        if vm.vm_options.flag_emit_debug_info {
+        if vm.options.flag_emit_debug_info {
             self.backend.add_cfi_endproc();
         }
         let (mc, func_end) = self.backend.finish_code(func_name.clone());

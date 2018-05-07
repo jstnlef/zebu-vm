@@ -61,7 +61,7 @@ impl CompilerPass for CodeEmission {
 /// creates an file to write, panics if the creation fails
 fn create_emit_file(name: String, vm: &VM) -> File {
     let mut file_path = path::PathBuf::new();
-    file_path.push(&vm.vm_options.flag_aot_emit_dir);
+    file_path.push(&vm.options.flag_aot_emit_dir);
     file_path.push(name);
 
     match File::create(file_path.as_path()) {

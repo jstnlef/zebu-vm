@@ -3646,7 +3646,7 @@ pub fn emit_code(fv: &mut MuFunctionVersion, vm: &VM) {
 
     // create emit file
     let mut file_path = path::PathBuf::new();
-    file_path.push(&vm.vm_options.flag_aot_emit_dir);
+    file_path.push(&vm.options.flag_aot_emit_dir);
     file_path.push((*func.name()).clone() + ".S");
     {
         let mut file = match File::create(file_path.as_path()) {
@@ -3673,7 +3673,7 @@ pub fn emit_code(fv: &mut MuFunctionVersion, vm: &VM) {
     // Read the file we just wrote above an demangle it
     {
         let mut demangled_path = path::PathBuf::new();
-        demangled_path.push(&vm.vm_options.flag_aot_emit_dir);
+        demangled_path.push(&vm.options.flag_aot_emit_dir);
         demangled_path.push((*func.name()).clone() + ".demangled.S");
 
         let mut demangled_file = match File::create(demangled_path.as_path()) {
@@ -3839,7 +3839,7 @@ pub fn emit_sym_table(vm: &VM) {
     //*************************************************
     debug!("Going to emit Sym table for sel4-rumprun");
     let mut file_path_st = path::PathBuf::new();
-    file_path_st.push(&vm.vm_options.flag_aot_emit_dir);
+    file_path_st.push(&vm.options.flag_aot_emit_dir);
 
     // vm file name is: "mu_sym_table.s"
     file_path_st.push(format!("{}", AOT_EMIT_SYM_TABLE_FILE));
@@ -3939,7 +3939,7 @@ pub fn emit_context_with_reloc(
     debug!("---Emit VM Context---");
     create_emit_directory(vm);
     let mut file_path = path::PathBuf::new();
-    file_path.push(&vm.vm_options.flag_aot_emit_dir);
+    file_path.push(&vm.options.flag_aot_emit_dir);
     file_path.push(AOT_EMIT_CONTEXT_FILE);
     let mut file = match File::create(file_path.as_path()) {
         Err(why) => panic!("couldn't create context file {}: {}", file_path.to_str().unwrap(), why),

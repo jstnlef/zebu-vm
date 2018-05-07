@@ -96,7 +96,7 @@ pub struct VM {
     gc_id_map: RwLock<HashMap<TypeID, TypeEncode>>,
 
     /// current options for this VM
-    pub vm_options: VMOptions, // +624
+    pub options: VMOptions, // +624
 
     // ---partially serialize---
     /// compiled functions
@@ -149,7 +149,7 @@ unsafe impl rodal::Dump for VM {
         dumper.dump_object(&self.primordial);
         dumper.dump_object(&self.gc_type_map);
         dumper.dump_object(&self.gc_id_map);
-        dumper.dump_object(&self.vm_options);
+        dumper.dump_object(&self.options);
         dumper.dump_object(&self.compiled_funcs);
         dumper.dump_object(&self.callsite_table);
 
@@ -229,7 +229,7 @@ impl VM {
 
         let ret = VM {
             next_id: ATOMIC_USIZE_INIT,
-            vm_options: options,
+            options: options,
             id_name_map: RwLock::new(HashMap::new()),
             name_id_map: RwLock::new(HashMap::new()),
             constants: RwLock::new(HashMap::new()),
@@ -280,7 +280,7 @@ impl VM {
 
         let mut ret = VM {
             next_id: ATOMIC_USIZE_INIT,
-            vm_options: options,
+            options: options,
             id_name_map: RwLock::new(HashMap::new()),
             name_id_map: RwLock::new(HashMap::new()),
             constants: RwLock::new(HashMap::new()),
@@ -301,8 +301,8 @@ impl VM {
 
         // currently, the default sizes don't work on sel4-rumprun platform
         // this is due to memory allocation size limitations
-        ret.vm_options.flag_gc_immixspace_size = 1 << 19;
-        ret.vm_options.flag_gc_lospace_size = 1 << 19;
+        ret.options.flag_gc_immixspace_size = 1 << 19;
+        ret.options.flag_gc_lospace_size = 1 << 19;
 
         // insert all internal types
         {
@@ -326,7 +326,7 @@ impl VM {
 
     /// initializes runtime
     fn init_runtime(&self) {
-        let ref options = self.vm_options;
+        let ref options = self.options;
 
         // init gc
         gc::gc_init(GCConfig {

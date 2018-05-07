@@ -3141,7 +3141,7 @@ pub fn emit_code(fv: &mut MuFunctionVersion, vm: &VM) {
     create_emit_directory(vm);
 
     let mut file_path = path::PathBuf::new();
-    file_path.push(&vm.vm_options.flag_aot_emit_dir);
+    file_path.push(&vm.options.flag_aot_emit_dir);
     file_path.push(func.name().to_string() + ".S");
     {
         let mut file = match File::create(file_path.as_path()) {
@@ -3173,7 +3173,7 @@ pub fn emit_code(fv: &mut MuFunctionVersion, vm: &VM) {
     // Read the file we just wrote above an demangle it
     {
         let mut demangled_path = path::PathBuf::new();
-        demangled_path.push(&vm.vm_options.flag_aot_emit_dir);
+        demangled_path.push(&vm.options.flag_aot_emit_dir);
         demangled_path.push((*func.name()).clone() + ".demangled.S");
 
         let mut demangled_file = match File::create(demangled_path.as_path()) {
@@ -3297,7 +3297,7 @@ pub fn emit_context_with_reloc(
     create_emit_directory(vm);
 
     let mut file_path = path::PathBuf::new();
-    file_path.push(&vm.vm_options.flag_aot_emit_dir);
+    file_path.push(&vm.options.flag_aot_emit_dir);
     file_path.push(AOT_EMIT_CONTEXT_FILE);
 
     let mut file = match File::create(file_path.as_path()) {

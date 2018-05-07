@@ -27,7 +27,7 @@ pub const EMIT_MUIR: bool = true;
 
 fn create_emit_file(name: String, vm: &VM) -> File {
     let mut file_path = path::PathBuf::new();
-    file_path.push(&vm.vm_options.flag_aot_emit_dir);
+    file_path.push(&vm.options.flag_aot_emit_dir);
     file_path.push(name);
 
     match File::create(file_path.as_path()) {
@@ -58,7 +58,7 @@ fn emit_uir(suffix: &str, func_ver: &MuFunctionVersion, vm: &VM) {
     create_emit_directory(vm);
 
     let mut file_path = path::PathBuf::new();
-    file_path.push(&vm.vm_options.flag_aot_emit_dir);
+    file_path.push(&vm.options.flag_aot_emit_dir);
     file_path.push((*func_ver_name).clone() + suffix + ".uir");
 
     let mut file = match File::create(file_path.as_path()) {

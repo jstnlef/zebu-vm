@@ -26,7 +26,7 @@ use vm::uir_output::{create_emit_directory, EMIT_MUIR};
 
 fn create_emit_file(name: String, vm: &VM) -> File {
     let mut file_path = path::PathBuf::new();
-    file_path.push(&vm.vm_options.flag_aot_emit_dir);
+    file_path.push(&vm.options.flag_aot_emit_dir);
     file_path.push(name);
 
     match File::create(file_path.as_path()) {
@@ -57,7 +57,7 @@ fn emit_muir_dot(suffix: &str, func: &MuFunctionVersion, vm: &VM) {
     create_emit_directory(vm);
 
     let mut file_path = path::PathBuf::new();
-    file_path.push(&vm.vm_options.flag_aot_emit_dir);
+    file_path.push(&vm.options.flag_aot_emit_dir);
     file_path.push((*func_name).clone() + suffix + ".dot");
 
     let mut file = match File::create(file_path.as_path()) {

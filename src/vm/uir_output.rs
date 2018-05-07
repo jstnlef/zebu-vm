@@ -18,7 +18,7 @@ fn emit_mu_types(suffix: &str, vm: &VM) {
     create_emit_directory(vm);
 
     let mut file_path = path::PathBuf::new();
-    file_path.push(&vm.vm_options.flag_aot_emit_dir);
+    file_path.push(&vm.options.flag_aot_emit_dir);
     file_path.push("___types".to_string() + suffix + ".uir");
     let mut file = match File::create(file_path.as_path()) {
         Err(why) => panic!("couldn't create mu types file {}: {}", file_path.to_str().unwrap(), why),
@@ -54,7 +54,7 @@ fn emit_mu_globals(suffix: &str, vm: &VM) {
     create_emit_directory(vm);
 
     let mut file_path = path::PathBuf::new();
-    file_path.push(&vm.vm_options.flag_aot_emit_dir);
+    file_path.push(&vm.options.flag_aot_emit_dir);
     file_path.push("___globals".to_string() + suffix + ".uir");
     let mut file = match File::create(file_path.as_path()) {
         Err(why) => panic!(
@@ -75,7 +75,7 @@ fn emit_mu_funcdecls(suffix: &str, vm: &VM) {
     create_emit_directory(vm);
 
     let mut file_path = path::PathBuf::new();
-    file_path.push(&vm.vm_options.flag_aot_emit_dir);
+    file_path.push(&vm.options.flag_aot_emit_dir);
     file_path.push("___funcdecls".to_string() + suffix + ".uir");
     let mut file = match File::create(file_path.as_path()) {
         Err(why) => panic!(
@@ -96,7 +96,7 @@ fn emit_mu_funcdecls(suffix: &str, vm: &VM) {
 
 pub fn create_emit_directory(vm: &VM) {
     use std::fs;
-    match fs::create_dir(&vm.vm_options.flag_aot_emit_dir) {
+    match fs::create_dir(&vm.options.flag_aot_emit_dir) {
         Ok(_) => {}
         Err(_) => {}
     }

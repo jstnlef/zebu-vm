@@ -4466,7 +4466,7 @@ impl<'a> InstructionSelection {
 
         // Set the frame pointer to be the stack pointer
         self.backend.emit_mov(&FP, &SP);
-        if vm.vm_options.flag_emit_debug_info {
+        if vm.options.flag_emit_debug_info {
             self.backend.add_cfi_def_cfa(&FP, 16i32);
             self.backend.add_cfi_offset(&FP, -16i32);
             self.backend.add_cfi_offset(&LR, -8i32);
@@ -5544,7 +5544,7 @@ impl CompilerPass for InstructionSelection {
             let funcs = vm.funcs().read().unwrap();
             let func = funcs.get(&func_ver.func_id).unwrap().read().unwrap();
             let start_loc = self.backend.start_code(func.name(), entry_block.name());
-            if vm.vm_options.flag_emit_debug_info {
+            if vm.options.flag_emit_debug_info {
                 self.backend.add_cfi_sections(".eh_frame, .debug_frame");
                 self.backend.add_cfi_startproc();
             }
@@ -5621,7 +5621,7 @@ impl CompilerPass for InstructionSelection {
         };
 
         // have to do this before 'finish_code()'
-        if vm.vm_options.flag_emit_debug_info {
+        if vm.options.flag_emit_debug_info {
             self.backend.add_cfi_endproc();
         }
         let (mc, func_end) = self.backend.finish_code(func_name.clone());

@@ -715,7 +715,7 @@ fn test_persist_funcref() {
     let executable = {
         use std::path;
         let mut path = path::PathBuf::new();
-        path.push(&vm.vm_options.flag_aot_emit_dir);
+        path.push(&vm.options.flag_aot_emit_dir);
         path.push("test_persist_funcref");
         path
     };

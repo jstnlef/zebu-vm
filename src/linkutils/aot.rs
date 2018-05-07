@@ -26,7 +26,7 @@ use std::process::Command;
 /// links generated code for the given functions, static library of Zebu,
 /// and a main function to produce an executable of the given name
 pub fn link_primordial(funcs: Vec<MuName>, out: &str, vm: &VM) -> PathBuf {
-    let emit_dir = PathBuf::from(&vm.vm_options.flag_aot_emit_dir);
+    let emit_dir = PathBuf::from(&vm.options.flag_aot_emit_dir);
 
     // prepare a list of files that need to be compiled and linked together
     let files: Vec<PathBuf> = {
@@ -45,7 +45,7 @@ pub fn link_primordial(funcs: Vec<MuName>, out: &str, vm: &VM) -> PathBuf {
         // copy primoridal entry
         let source = get_path_under_zebu(runtime::PRIMORDIAL_ENTRY);
         let dest = {
-            let mut ret = PathBuf::from(&vm.vm_options.flag_aot_emit_dir);
+            let mut ret = PathBuf::from(&vm.options.flag_aot_emit_dir);
             ret.push("main.c");
 
             ret
@@ -60,7 +60,7 @@ pub fn link_primordial(funcs: Vec<MuName>, out: &str, vm: &VM) -> PathBuf {
         ret.push(dest);
 
         // include mu static lib
-        if vm.vm_options.flag_aot_link_static {
+        if vm.options.flag_aot_link_static {
             ret.push(get_path_under_zebu(if cfg!(debug_assertions) {
                 "target/debug/libmu.a"
             } else {
@@ -75,10 +75,10 @@ pub fn link_primordial(funcs: Vec<MuName>, out: &str, vm: &VM) -> PathBuf {
     out_path.push(out);
 
     link_executable_internal(
-        !vm.vm_options.flag_aot_link_static,
+        !vm.options.flag_aot_link_static,
         files,
-        &vm.vm_options.flag_bootimage_external_lib,
-        &vm.vm_options.flag_bootimage_external_libpath,
+        &vm.options.flag_bootimage_external_lib,
+        &vm.options.flag_bootimage_external_libpath,
         out_path
     )
 }
@@ -86,7 +86,7 @@ pub fn link_primordial(funcs: Vec<MuName>, out: &str, vm: &VM) -> PathBuf {
 /// links generated code for the given test's functions, static library of Zebu,
 /// and a main function to produce an executable of the given name
 pub fn link_test_primordial(funcs: Vec<MuName>, out: &str, vm: &VM) -> PathBuf {
-    let emit_dir = PathBuf::from(&vm.vm_options.flag_aot_emit_dir);
+    let emit_dir = PathBuf::from(&vm.options.flag_aot_emit_dir);
 
     // prepare a list of files that need to be compiled and linked together
     let files: Vec<PathBuf> = {
@@ -105,7 +105,7 @@ pub fn link_test_primordial(funcs: Vec<MuName>, out: &str, vm: &VM) -> PathBuf {
         // copy primoridal entry
         let source = get_path_under_zebu(runtime::TEST_PRIMORDIAL_ENTRY);
         let dest = {
-            let mut ret = PathBuf::from(&vm.vm_options.flag_aot_emit_dir);
+            let mut ret = PathBuf::from(&vm.options.flag_aot_emit_dir);
             ret.push("main_test.c");
 
             ret
@@ -120,7 +120,7 @@ pub fn link_test_primordial(funcs: Vec<MuName>, out: &str, vm: &VM) -> PathBuf {
         ret.push(dest);
 
         // include mu static lib
-        if vm.vm_options.flag_aot_link_static {
+        if vm.options.flag_aot_link_static {
             ret.push(get_path_under_zebu(if cfg!(debug_assertions) {
                 "target/debug/libmu.a"
             } else {
@@ -135,10 +135,10 @@ pub fn link_test_primordial(funcs: Vec<MuName>, out: &str, vm: &VM) -> PathBuf {
     out_path.push(out);
 
     link_executable_internal(
-        !vm.vm_options.flag_aot_link_static,
+        !vm.options.flag_aot_link_static,
         files,
-        &vm.vm_options.flag_bootimage_external_lib,
-        &vm.vm_options.flag_bootimage_external_libpath,
+        &vm.options.flag_bootimage_external_lib,
+        &vm.options.flag_bootimage_external_libpath,
         out_path
     )
 }
@@ -237,13 +237,13 @@ pub fn link_dylib_with_extra_srcs(funcs: Vec<MuName>, srcs: Vec<String>, out: &s
         ret
     };
 
-    let mut out_path = PathBuf::from(&vm.vm_options.flag_aot_emit_dir);
+    let mut out_path = PathBuf::from(&vm.options.flag_aot_emit_dir);
     out_path.push(out);
 
     link_dylib_internal(
         files,
-        &vm.vm_options.flag_bootimage_external_lib,
-        &vm.vm_options.flag_bootimage_external_libpath,
+        &vm.options.flag_bootimage_external_lib,
+        &vm.options.flag_bootimage_external_libpath,
         out_path
     )
 }
@@ -371,7 +371,7 @@ pub fn compile_fncs<'a>(entry: &'static str, fnc_names: Vec<&'static str>, build
 
 /// gets the path for the generated code of a Mu function
 fn get_path_for_mu_func(f: MuName, vm: &VM) -> PathBuf {
-    let mut ret = PathBuf::from(&vm.vm_options.flag_aot_emit_dir);
+    let mut ret = PathBuf::from(&vm.options.flag_aot_emit_dir);
     ret.push((*f).clone() + ".S");
 
     ret
@@ -379,7 +379,7 @@ fn get_path_for_mu_func(f: MuName, vm: &VM) -> PathBuf {
 
 /// gets the path for generated Mu context (persisted VM/heap)
 fn get_path_for_mu_context(vm: &VM) -> PathBuf {
-    let mut ret = PathBuf::from(&vm.vm_options.flag_aot_emit_dir);
+    let mut ret = PathBuf::from(&vm.options.flag_aot_emit_dir);
     ret.push(backend::AOT_EMIT_CONTEXT_FILE);
     ret
 }
